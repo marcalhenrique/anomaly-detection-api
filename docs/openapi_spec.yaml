@@ -1,0 +1,152 @@
+openapi: 3.0.0
+info:
+  title: Time Series Anomaly Detection API
+  version: 0.0.0
+tags:
+  - name: Training
+  - name: Prediction
+  - name: Health Check
+paths:
+  /fit/{series_id}:
+    post:
+      operationId: Trainining_fit
+      parameters:
+        - name: series_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trainining.TrainResponse"
+      tags:
+        - Training
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Trainining.TrainData"
+  /healthcheck:
+    get:
+      operationId: HealthCheck_healthcheck
+      description: |-
+        This route is optional.
+        You may implement all the data in the contract, add more data, or implement it partially.
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthCheck.HealthCheckResponse"
+      tags:
+        - Health Check
+  /predict/{series_id}:
+    post:
+      operationId: Prediction_predict
+      parameters:
+        - name: series_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: query
+          required: false
+          schema:
+            type: string
+          explode: false
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Prediction.PredictResponse"
+      tags:
+        - Prediction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Prediction.PredictData"
+components:
+  schemas:
+    HealthCheck.HealthCheckResponse:
+      type: object
+      required:
+        - series_trained
+        - inference_latency_ms
+        - training_latency_ms
+      properties:
+        series_trained:
+          type: integer
+          format: int32
+        inference_latency_ms:
+          $ref: "#/components/schemas/HealthCheck.Metrics"
+        training_latency_ms:
+          $ref: "#/components/schemas/HealthCheck.Metrics"
+    HealthCheck.Metrics:
+      type: object
+      properties:
+        avg:
+          type: number
+        p95:
+          type: number
+    Prediction.PredictData:
+      type: object
+      required:
+        - timestamp
+        - value
+      properties:
+        timestamp:
+          type: string
+        value:
+          type: number
+    Prediction.PredictResponse:
+      type: object
+      required:
+        - anomaly
+        - model_version
+      properties:
+        anomaly:
+          type: boolean
+        model_version:
+          type: string
+    Trainining.TrainData:
+      type: object
+      required:
+        - timestamps
+        - values
+      properties:
+        timestamps:
+          type: array
+          items:
+            type: integer
+            format: int64
+          description: Timestamp values should be in the unix timestamp format
+        values:
+          type: array
+          items:
+            type: number
+    Trainining.TrainResponse:
+      type: object
+      required:
+        - series_id
+        - version
+        - points_used
+      properties:
+        series_id:
+          type: string
+        version:
+          type: string
+        points_used:
+          type: integer
+          format: int32
