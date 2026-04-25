@@ -218,4 +218,5 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 drafts/
-
+skills-lock.json
+.agents/

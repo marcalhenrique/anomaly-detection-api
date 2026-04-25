@@ -23,7 +23,6 @@ class Settings(BaseSettings):
 
     mlflow_tracking_uri: str = "http://localhost:5000"
     mlflow_s3_endpoint_url: str = "http://localhost:9000"
-    mlflow_experiment_name: str = "anomaly-detection"
 
     redis_host: str = "localhost"
     redis_port: int = 6379

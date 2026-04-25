@@ -13,6 +13,7 @@ if __name__ == "__main__":
         port=settings.api_port,
         factory=True,
         reload=True,
-        reload_excludes=[".venv", "log", "*.log", "__pycache__", "*.pyc"],
+        reload_dirs=["src"],
+        reload_excludes=["**/__pycache__/*", "**/*.pyc"],
         log_config=None,
     )
