@@ -7,6 +7,7 @@ from src.api.schemas import TrainRequest
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_request(n: int = 10, **overrides) -> dict:
     """Build a minimal valid payload with *n* points."""
     timestamps = list(range(n))

@@ -5,7 +5,7 @@ tests remain fast, deterministic, and free of I/O.
 """
 
 from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 

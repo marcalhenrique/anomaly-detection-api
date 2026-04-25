@@ -50,7 +50,7 @@ def test_predict_returns_false_for_normal_value():
     values = [10.0] * 10
     model = AnomalyDetectionModel().fit(_make_time_series(values))
     normal_point = DataPoint(timestamp=99, value=10.0)
-    assert model.predict(normal_point) == False
+    assert not model.predict(normal_point)
 
 
 def test_predict_returns_true_for_outlier():
@@ -58,4 +58,4 @@ def test_predict_returns_true_for_outlier():
     values = [1.0, 2.0, 3.0, 4.0, 5.0, 1.0, 2.0, 3.0, 4.0, 5.0]
     model = AnomalyDetectionModel().fit(_make_time_series(values))
     outlier = DataPoint(timestamp=99, value=model.mean + 4 * model.std)
-    assert model.predict(outlier) == True
+    assert model.predict(outlier)

@@ -31,7 +31,9 @@ _EXPECTED_RESPONSE = {
 }
 
 
-def _override_service(response: TrainResponse | None = None, raises: Exception | None = None):
+def _override_service(
+    response: TrainResponse | None = None, raises: Exception | None = None
+):
     """Return a FastAPI dependency override for TrainingService."""
     mock_svc = AsyncMock()
     if raises is not None:
