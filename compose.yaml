@@ -92,19 +92,6 @@ services:
     networks:
       - anomaly-network
 
-  redis:
-    image: redis:7-alpine
-    container_name: anomaly-redis
-    ports:
-      - "${REDIS_PORT}:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - anomaly-network
-
   api:
     build:
       context: .
@@ -120,7 +107,6 @@ services:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY}
       AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY}
-      REDIS_HOST: redis
     ports:
       - "${API_PORT}:${API_PORT}"
     depends_on:
@@ -129,8 +115,6 @@ services:
       minio:
         condition: service_healthy
       mlflow:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     networks:
       - anomaly-network

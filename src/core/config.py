@@ -8,7 +8,6 @@ class Settings(BaseSettings):
     api_port: int = 8000
     log_level: str = "INFO"
     lru_cache_size: int = 10000
-    cache_backend: str = "redis"  # "local" or "redis"
 
     postgres_user: str = "postgres"
     postgres_password: str = "postgres"
@@ -23,9 +22,6 @@ class Settings(BaseSettings):
 
     mlflow_tracking_uri: str = "http://localhost:5000"
     mlflow_s3_endpoint_url: str = "http://localhost:9000"
-
-    redis_host: str = "localhost"
-    redis_port: int = 6379
 
     model_config = SettingsConfigDict(
         env_file=".env",
