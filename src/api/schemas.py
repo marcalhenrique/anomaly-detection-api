@@ -77,10 +77,10 @@ class TrainResponse(BaseModel):
 
 
 class PredictRequest(BaseModel):
-    timestamp: str = Field(
+    timestamp: int = Field(
         ...,
         description="Timestamp for the prediction",
-        examples=["1745000600"],
+        examples=[1745000600],
     )
     value: float = Field(
         ...,
@@ -89,7 +89,7 @@ class PredictRequest(BaseModel):
     )
 
     model_config = {
-        "json_schema_extra": {"examples": [{"timestamp": "1745000600", "value": 42.7}]}
+        "json_schema_extra": {"examples": [{"timestamp": 1745000600, "value": 42.7}]}
     }
 
 
