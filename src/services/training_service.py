@@ -71,6 +71,17 @@ class TrainingService:
                 run_id=run_id,
             )
 
+            try:
+                await asyncio.to_thread(self._mlflow_svc.load_model, run_id)
+                logger.info("cache_warmed", series_id=series_id, run_id=run_id)
+            except Exception as e:
+                logger.warning(
+                    "cache_warm_failed",
+                    series_id=series_id,
+                    run_id=run_id,
+                    error=str(e),
+                )
+
         return TrainResponse(
             series_id=series_id,
             version=model_version,
