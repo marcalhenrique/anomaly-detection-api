@@ -1,13 +1,14 @@
-# Unit Tests — `/fit` Route
+# Unit Tests — `/fit` and `/predict` Routes
 
-Test coverage for the training flow (`POST /fit/{series_id}`).
+Test coverage for the training flow (`POST /fit/{series_id}`) and prediction flow (`POST /predict/{series_id}`).
 
 ## Structure
 
 ```
 tests/
 ├── api/
-│   └── test_fit_route.py
+│   ├── test_fit_route.py
+│   └── test_predict_route.py
 ├── repositories/
 │   └── test_model_metadata_repository.py
 ├── schemas/
@@ -15,6 +16,7 @@ tests/
 └── services/
     ├── test_training_lock.py      # pre-existing
     ├── test_training_service.py
+    ├── test_prediction_service.py
     └── test_anomaly_detection.py
 ```
 
@@ -108,6 +110,44 @@ Tests the `POST /fit/{series_id}` HTTP route via FastAPI's `TestClient`. The `Tr
 | `test_fit_returns_422_when_timestamps_not_unique`                 | Duplicate timestamps must return HTTP 422                                            |
 | `test_fit_returns_500_when_service_raises`                        | An exception in the service must be caught by the route and return HTTP 500          |
 | `test_fit_500_response_contains_error_detail`                     | The `detail` field of the 500 response must contain the original exception message   |
+
+---
+
+## `tests/services/test_prediction_service.py`
+
+Validates the orchestration logic of `PredictionService.predict()`. All external collaborators (MLflow, repository) are mocked.
+
+| Test                                                              | Description                                                                                       |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `test_predict_returns_correct_response_for_normal_value`          | A normal value must return `anomaly=False` and the correct `model_version`                        |
+| `test_predict_returns_correct_response_for_anomalous_value`       | An anomalous value must return `anomaly=True`                                                     |
+| `test_predict_uses_latest_model_when_version_not_provided`        | Without a `version` param, `get_latest_by_series_id` must be called and `get_by_version` must not |
+| `test_predict_uses_specific_version_when_provided`                | With a `version` param, `get_by_version` must be called and `get_latest_by_series_id` must not    |
+| `test_predict_loads_model_using_run_id_from_metadata`             | `MLflowService.load_model` must be called with the `run_id` stored in the metadata record         |
+| `test_predict_calls_model_predict_with_correct_data_point`        | `model.predict()` must receive a `DataPoint` with the correct `timestamp` and `value`             |
+| `test_predict_raises_model_not_found_when_series_does_not_exist`  | When no metadata is found for the series, `ModelNotFoundError` must be raised                     |
+| `test_predict_raises_model_not_found_when_version_does_not_exist` | When the requested version is not found, `ModelNotFoundError` must be raised                      |
+
+---
+
+## `tests/api/test_predict_route.py`
+
+Tests the `POST /predict/{series_id}` HTTP route via FastAPI's `TestClient`. The `PredictionService` is replaced by a mock through `dependency_overrides`, with no real I/O.
+
+| Test                                                     | Description                                                                        |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `test_predict_returns_200_with_valid_body`               | A valid request must return HTTP 200                                               |
+| `test_predict_response_body_matches_schema`              | The response body must contain the correct `anomaly` and `model_version` fields    |
+| `test_predict_returns_anomaly_true_when_service_says_so` | When the service returns `anomaly=True`, the route must reflect that               |
+| `test_predict_passes_version_query_param_to_service`     | A `?version=` query param must be accepted without error                           |
+| `test_predict_returns_422_when_body_is_empty`            | An empty body must return HTTP 422                                                 |
+| `test_predict_returns_422_when_value_is_missing`         | A body with only `timestamp` must return HTTP 422                                  |
+| `test_predict_returns_422_when_timestamp_is_missing`     | A body with only `value` must return HTTP 422                                      |
+| `test_predict_returns_422_when_timestamp_is_not_integer` | A non-integer `timestamp` must return HTTP 422                                     |
+| `test_predict_returns_404_when_series_does_not_exist`    | A `ModelNotFoundError` from the service must be caught and returned as HTTP 404    |
+| `test_predict_404_response_contains_error_detail`        | The `detail` field of the 404 response must contain the `series_id`                |
+| `test_predict_returns_500_when_service_raises`           | An unexpected exception in the service must be caught and returned as HTTP 500     |
+| `test_predict_500_response_contains_error_detail`        | The `detail` field of the 500 response must contain the original exception message |
 
 ---
 
