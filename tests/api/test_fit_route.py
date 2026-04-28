@@ -4,7 +4,8 @@ FastAPI's TestClient is used together with dependency overrides so that no
 real TrainingService (or any I/O) is involved.
 """
 
-from unittest.mock import AsyncMock
+from contextlib import asynccontextmanager
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,11 +14,16 @@ from src.api.app import create_app
 from src.api.dependencies import get_training_service
 from src.api.schemas import TrainResponse
 
-app = create_app()
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+@asynccontextmanager
+async def _noop_lifespan(app):
+    """Bypass the real lifespan (DB cache-warming) for isolated route tests."""
+    yield
 
 N_POINTS = 10
 _VALID_BODY = {
@@ -55,21 +61,25 @@ def _override_service(
 @pytest.fixture
 def client():
     """TestClient with a happy-path TrainingService override."""
-    app.dependency_overrides[get_training_service] = _override_service()
-    with TestClient(app) as c:
-        yield c
-    app.dependency_overrides.clear()
+    with patch("src.api.app.lifespan", _noop_lifespan):
+        app = create_app()
+        app.dependency_overrides[get_training_service] = _override_service()
+        with TestClient(app) as c:
+            yield c
+        app.dependency_overrides.clear()
 
 
 @pytest.fixture
 def client_with_error():
     """TestClient whose TrainingService always raises."""
-    app.dependency_overrides[get_training_service] = _override_service(
-        raises=RuntimeError("unexpected failure")
-    )
-    with TestClient(app) as c:
-        yield c
-    app.dependency_overrides.clear()
+    with patch("src.api.app.lifespan", _noop_lifespan):
+        app = create_app()
+        app.dependency_overrides[get_training_service] = _override_service(
+            raises=RuntimeError("unexpected failure")
+        )
+        with TestClient(app) as c:
+            yield c
+        app.dependency_overrides.clear()
 
 
 # ---------------------------------------------------------------------------
