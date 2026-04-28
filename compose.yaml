@@ -77,6 +77,7 @@ services:
       --artifacts-destination s3://${MINIO_BUCKET_NAME}
       --host 0.0.0.0
       --port 5000
+      --allowed-hosts mlflow,mlflow:5000,anomaly-mlflow,anomaly-mlflow:5000,localhost,localhost:5000
     healthcheck:
       test:
         [
@@ -116,12 +117,192 @@ services:
         condition: service_healthy
       mlflow:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/metrics/')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - anomaly-network
+
+  prometheus:
+    image: prom/prometheus:v3.4.0
+    container_name: anomaly-prometheus
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+    networks:
+      - anomaly-network
+
+  grafana:
+    image: grafana/grafana:12.0.1
+    container_name: anomaly-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    networks:
+      - anomaly-network
+
+  test:
+    build:
+      context: .
+      dockerfile: docker/test.Dockerfile
+    image: anomaly-test:latest
+    container_name: anomaly-test
+    env_file:
+      - .env
+    environment:
+      API_BASE_URL: http://api:8000
+      POSTGRES_HOST: postgres
+      MINIO_ENDPOINT_URL: http://minio:9000
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY}
+    depends_on:
+      api:
+        condition: service_healthy
+    command: pytest tests/e2e/ -v
+    profiles:
+      - test
+    networks:
+      - anomaly-network
+
+  benchmark:
+    image: anomaly-api:latest
+    container_name: anomaly-benchmark
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      MINIO_ENDPOINT_URL: http://minio:9000
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY}
+    depends_on:
+      api:
+        condition: service_healthy
+    entrypoint: ["python"]
+    command:
+      - scripts/run_benchmark.py
+      - --base-url
+      - http://api:8000
+      - --cache-size
+      - "50"
+      - --evict-extra
+      - "10"
+      - --train-n-models
+      - "20"
+      - --train-concurrency
+      - "10"
+      - --infer-n-requests
+      - "500"
+      - --infer-concurrency
+      - "50"
+      - --retrain-n-versions
+      - "10"
+      - --retrain-concurrency
+      - "10"
+      - --output
+      - reports/benchmark.md
+    volumes:
+      - ./reports:/app/reports
+    profiles:
+      - benchmark
+    networks:
+      - anomaly-network
+
+  populate:
+    image: anomaly-api:latest
+    container_name: anomaly-populate
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      MINIO_ENDPOINT_URL: http://minio:9000
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY}
+    depends_on:
+      api:
+        condition: service_healthy
+    entrypoint: ["python"]
+    command:
+      - scripts/populate_training.py
+      - --base-url
+      - http://api:8000
+      - --n-series
+      - "100"
+      - --concurrency
+      - "20"
+      - --output
+      - reports/populate.md
+    volumes:
+      - ./reports:/app/reports
+    profiles:
+      - populate
+    networks:
+      - anomaly-network
+
+  inference:
+    image: anomaly-api:latest
+    container_name: anomaly-inference
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      MINIO_ENDPOINT_URL: http://minio:9000
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY}
+    depends_on:
+      api:
+        condition: service_healthy
+    entrypoint: ["python"]
+    command:
+      - scripts/run_inference.py
+      - --base-url
+      - http://api:8000
+      - --n-series
+      - "50"
+      - --n-requests
+      - "1000"
+      - --concurrency
+      - "100"
+      - --output
+      - reports/inference.md
+    volumes:
+      - ./reports:/app/reports
+    profiles:
+      - inference
     networks:
       - anomaly-network
 
 volumes:
   postgres_data:
   minio_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   anomaly-network:

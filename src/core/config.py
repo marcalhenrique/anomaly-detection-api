@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     api_port: int = 8000
     log_level: str = "INFO"
     lru_cache_size: int = 10000
+    healthcheck_latency_window: int = 1000
 
     postgres_user: str = "postgres"
     postgres_password: str = "postgres"
@@ -20,7 +21,7 @@ class Settings(BaseSettings):
     minio_secret_key: str = "minioadmin"
     minio_bucket_name: str = "anomaly-detection"
 
-    mlflow_tracking_uri: str = "http://localhost:5000"
+    mlflow_tracking_uri: str = "http://localhost:5001"
     mlflow_s3_endpoint_url: str = "http://localhost:9000"
 
     model_config = SettingsConfigDict(
