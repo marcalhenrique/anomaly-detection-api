@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="Electron" modified="2026-04-27T23:55:00.000Z" version="26.0.0">
+  <diagram id="train-flow" name="Train Flow">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t-title" value="&lt;b&gt;POST /fit/{series_id} - Training Flow&lt;/b&gt;"
+                style="text;strokeColor=none;fillColor=none;fontSize=18;fontStyle=1;"
+                vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="400" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t-start" value="Client sends
+POST /fit/{series_id}"
+                style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;"
+                vertex="1" parent="1">
+          <mxGeometry x="500" y="70" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t-val" value="Validate request
+(min 10 data points,
+sorted, unique)"
+                style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;"
+                vertex="1" parent="1">
+          <mxGeometry x="500" y="160" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t-hash" value="Compute SHA-256
+data hash"
+                style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;"
+                vertex="1" parent="1">
+          <mxGeometry x="500" y="250" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t-lock" value="Acquire per-series
+async lock"
+                style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;"
+                vertex="1" parent="1">
+          <mxGeometry x="500" y="340" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t-dup" value="Check DB for
+existing model with
+same data hash"
+                style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;"
+                vertex="1" parent="1">
+          <mxGeometry x="480" y="430" width="180" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t-skip" value="Return existing
+TrainResponse
+(skip training)"
+                style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;"
+                vertex="1" parent="1">
+          <mxGeometry x="800" y="440" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t-fit" value="AnomalyDetectionModel.fit()
+Compute mean &amp;amp; std
+(via NumPy)"
+                style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;"
+                vertex="1" parent="1">
+          <mxGeometry x="500" y="550" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t-mlflow" value="MLflow: create experiment,
+run, log params, save
+model.pkl to MinIO/S3"
+                style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;"
+                vertex="1" parent="1">
+          <mxGeometry x="500" y="640" width="160" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t-db" value="Persist metadata
+to PostgreSQL
+(series_id, run_id,
+version, data_hash)"
+                style="shape=mxgraph.flowchart.database;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;"
+                vertex="1" parent="1">
+          <mxGeometry x="500" y="740" width="140" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t-cache" value="Update MetadataCache
+&amp;amp; warm model in
+LRU cache"
+                style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;"
+                vertex="1" parent="1">
+          <mxGeometry x="500" y="840" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t-metrics" value="Record training latency
+&amp;amp; update series_trained
+gauge"
+                style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;"
+                vertex="1" parent="1">
+          <mxGeometry x="500" y="930" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t-end" value="Return
+TrainResponse"
+                style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;"
+                vertex="1" parent="1">
+          <mxGeometry x="500" y="1020" width="140" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Edges -->
+        <mxCell id="te1" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="t-start" target="t-val" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="te2" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="t-val" target="t-hash" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="te3" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="t-hash" target="t-lock" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="te4" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="t-lock" target="t-dup" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="te5" value="Duplicate found" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="t-dup" target="t-skip" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="te6" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="t-skip" target="t-end" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="870" y="1050"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="te7" value="New data" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="t-dup" target="t-fit" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="te8" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="t-fit" target="t-mlflow" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="te9" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="t-mlflow" target="t-db" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="te10" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="t-db" target="t-cache" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="te11" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="t-cache" target="t-metrics" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="te12" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="t-metrics" target="t-end" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
