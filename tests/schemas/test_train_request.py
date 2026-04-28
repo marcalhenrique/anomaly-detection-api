@@ -94,3 +94,11 @@ def test_raises_when_timestamp_is_negative():
     # the validator checks negatives explicitly.
     with pytest.raises(ValidationError, match="non-negative"):
         TrainRequest(**payload)
+
+
+def test_raises_when_values_are_constant():
+    """Constant values (zero standard deviation) must be rejected."""
+    payload = _make_request(10)
+    payload["values"] = [5.0] * 10
+    with pytest.raises(ValidationError, match="constant"):
+        TrainRequest(**payload)

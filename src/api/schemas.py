@@ -47,6 +47,8 @@ class TrainRequest(BaseModel):
             raise ValueError("timestamps must be unique")
         if self.timestamps != sorted(self.timestamps):
             raise ValueError("timestamps must be in ascending order")
+        if len(set(self.values)) == 1:
+            raise ValueError("values must not be constant")
         return self
 
 
@@ -77,10 +79,10 @@ class TrainResponse(BaseModel):
 
 
 class PredictRequest(BaseModel):
-    timestamp: int = Field(
+    timestamp: str = Field(
         ...,
-        description="Timestamp for the prediction",
-        examples=[1745000600],
+        description="Timestamp for the prediction (unix timestamp as string)",
+        examples=["1745000600"],
     )
     value: float = Field(
         ...,
@@ -89,7 +91,7 @@ class PredictRequest(BaseModel):
     )
 
     model_config = {
-        "json_schema_extra": {"examples": [{"timestamp": 1745000600, "value": 42.7}]}
+        "json_schema_extra": {"examples": [{"timestamp": "1745000600", "value": 42.7}]}
     }
 
 
