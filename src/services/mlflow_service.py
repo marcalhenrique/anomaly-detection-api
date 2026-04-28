@@ -1,6 +1,8 @@
+import json
 import pickle
 import tempfile
 import os
+import threading
 
 import mlflow
 import mlflow.tracking
@@ -19,6 +21,7 @@ class MLflowService:
         self._client = mlflow.tracking.MlflowClient()
         self._artifact_bucket = artifact_bucket
         self._model_cache = LRUCache(settings.lru_cache_size)
+        self._cache_lock = threading.Lock()
 
     def _get_or_create_experiment(self, series_id: str) -> str:
         experiment = self._client.get_experiment_by_name(series_id)
@@ -30,7 +33,12 @@ class MLflowService:
         )
 
     def save_model(
-        self, series_id: str, model: AnomalyDetectionModel, points_used: int
+        self,
+        series_id: str,
+        model: AnomalyDetectionModel,
+        points_used: int,
+        timestamps: list[int] | None = None,
+        values: list[float] | None = None,
     ) -> tuple[str, str]:
         experiment_id = self._get_or_create_experiment(series_id)
         run = self._client.create_run(
@@ -49,6 +57,15 @@ class MLflowService:
                 pickle.dump(model, f)
             self._client.log_artifact(run_id, model_path, artifact_path="model")
 
+            if timestamps is not None and values is not None:
+                data_path = os.path.join(tmp, "training_data.json")
+                payload = [
+                    {"timestamp": t, "value": v} for t, v in zip(timestamps, values)
+                ]
+                with open(data_path, "w") as f:
+                    json.dump(payload, f)
+                self._client.log_artifact(run_id, data_path, artifact_path="model")
+
         self._client.set_terminated(run_id, status="FINISHED")
 
         try:
@@ -66,8 +83,9 @@ class MLflowService:
         return run_id, model_version.version
 
     def load_model(self, run_id: str) -> AnomalyDetectionModel:
-        if run_id in self._model_cache:
-            return self._model_cache[run_id]
+        with self._cache_lock:
+            if run_id in self._model_cache:
+                return self._model_cache[run_id]
 
         with tempfile.TemporaryDirectory() as tmp:
             local_dir = self._client.download_artifacts(run_id, "model", dst_path=tmp)
@@ -75,5 +93,10 @@ class MLflowService:
             with open(model_path, "rb") as f:
                 model = pickle.load(f)
 
-        self._model_cache[run_id] = model
+        with self._cache_lock:
+            self._model_cache[run_id] = model
         return model
+
+    def get_cached_model(self, run_id: str) -> AnomalyDetectionModel | None:
+        with self._cache_lock:
+            return self._model_cache.get(run_id)

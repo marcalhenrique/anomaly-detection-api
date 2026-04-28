@@ -14,12 +14,14 @@ class ModelMetadataRepository:
         run_id: str,
         model_version: str,
         points_used: int,
+        data_hash: str | None = None,
     ) -> ModelMetadata:
         record = ModelMetadata(
             series_id=series_id,
             mlflow_run_id=run_id,
             version=model_version,
             points_used=points_used,
+            data_hash=data_hash,
         )
         self.session.add(record)
         await self.session.commit()
@@ -61,3 +63,9 @@ class ModelMetadataRepository:
             )
         )
         return list(result.scalars().all())
+
+    async def count_distinct_series(self) -> int:
+        result = await self.session.execute(
+            select(func.count(func.distinct(ModelMetadata.series_id)))
+        )
+        return result.scalar_one()
