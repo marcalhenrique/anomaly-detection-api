@@ -9,8 +9,8 @@ settings = get_settings()
 
 engine = create_async_engine(
     settings.postgres_dsn,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=50,
+    max_overflow=25,
     pool_pre_ping=True,
     echo=settings.log_level == "DEBUG",
 )
