@@ -1,0 +1,7 @@
+apiVersion: 1
+
+providers:
+  - name: anomaly-api
+    type: file
+    options:
+      path: /etc/grafana/provisioning/dashboards
