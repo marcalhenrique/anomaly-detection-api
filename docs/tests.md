@@ -1,6 +1,6 @@
-# Unit Tests — `/fit` and `/predict` Routes
+# Tests
 
-Test coverage for the training flow (`POST /fit/{series_id}`) and prediction flow (`POST /predict/{series_id}`).
+Test coverage for the training flow (`POST /fit/{series_id}`), prediction flow (`POST /predict/{series_id}`), healthcheck, and end-to-end integration.
 
 ## Structure
 
@@ -8,29 +8,38 @@ Test coverage for the training flow (`POST /fit/{series_id}`) and prediction flo
 tests/
 ├── api/
 │   ├── test_fit_route.py
+│   ├── test_healthcheck_route.py
 │   └── test_predict_route.py
+├── e2e/
+│   ├── test_fit.py
+│   └── test_predict.py
 ├── repositories/
 │   └── test_model_metadata_repository.py
 ├── schemas/
 │   └── test_train_request.py
 └── services/
-    ├── test_training_lock.py      # pre-existing
-    ├── test_training_service.py
+    ├── test_anomaly_detection.py
     ├── test_prediction_service.py
-    └── test_anomaly_detection.py
+    ├── test_training_lock.py
+    └── test_training_service.py
 ```
 
 ## How to run
 
+Tests run inside Docker — no local `uv` installation required.
+
 ```bash
-# All tests
-uv run pytest tests/ -v
+# Unit + integration tests only (fast, no external services)
+make test-unit
 
-# With coverage report
+# End-to-end tests (spins up full Docker stack: Postgres, MinIO, MLflow, API)
+make test-e2e
+
+# Both
+make test
+
+# With coverage report (requires uv locally)
 uv run pytest tests/ -v --cov=src --cov-report=term-missing
-
-# Single module
-uv run pytest tests/services/test_training_service.py -v
 ```
 
 ---
@@ -49,6 +58,7 @@ Validates the business rules of the `TrainRequest` Pydantic schema before any se
 | `test_raises_when_timestamps_not_unique`                 | Duplicate timestamps must be rejected                                    |
 | `test_raises_when_timestamps_not_sorted`                 | Out-of-order timestamps must be rejected                                 |
 | `test_raises_when_timestamp_is_negative`                 | Negative timestamps must be rejected                                     |
+| `test_raises_when_values_are_constant`                   | Constant values (zero standard deviation) must be rejected               |
 
 ---
 
@@ -79,6 +89,10 @@ Validates the orchestration logic of `TrainingService.fit()`. All external colla
 | `test_fit_raises_when_mlflow_save_fails`             | If MLflow raises an exception, `fit()` must propagate it                                                                             |
 | `test_fit_raises_when_repo_save_fails`               | If the repository raises an exception, `fit()` must propagate it                                                                     |
 | `test_fit_does_not_call_repo_when_mlflow_fails`      | If MLflow fails, the repository must not be called                                                                                   |
+| `test_fit_returns_existing_version_when_data_is_identical` | Idempotency: identical data must return the existing version without re-training                                               |
+| `test_fit_skips_mlflow_and_repo_when_data_is_identical`    | Idempotency: no MLflow or DB write must occur when data is identical                                                           |
+| `test_fit_trains_when_values_differ`                 | Different values must trigger a new training + version increment                                                                     |
+| `test_fit_trains_when_no_existing_model`             | A brand-new series must train from scratch and return version `1`                                                                    |
 
 ---
 
@@ -97,7 +111,7 @@ Validates the concurrency behaviour of `LocalTrainingLock`.
 
 ## `tests/api/test_fit_route.py`
 
-Tests the `POST /fit/{series_id}` HTTP route via FastAPI's `TestClient`. The `TrainingService` is replaced by a mock through `dependency_overrides`, with no real I/O.
+Tests the `POST /fit/{series_id}` HTTP route via FastAPI's `TestClient`. The `TrainingService` is replaced by a mock through `dependency_overrides`, with no real I/O. The real application `lifespan` (DB cache-warming) is bypassed via patch.
 
 | Test                                                              | Description                                                                          |
 | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
@@ -110,6 +124,19 @@ Tests the `POST /fit/{series_id}` HTTP route via FastAPI's `TestClient`. The `Tr
 | `test_fit_returns_422_when_timestamps_not_unique`                 | Duplicate timestamps must return HTTP 422                                            |
 | `test_fit_returns_500_when_service_raises`                        | An exception in the service must be caught by the route and return HTTP 500          |
 | `test_fit_500_response_contains_error_detail`                     | The `detail` field of the 500 response must contain the original exception message   |
+
+---
+
+## `tests/api/test_healthcheck_route.py`
+
+Tests the `GET /healthcheck` HTTP route in isolation. External dependencies (database, MLflow) are fully mocked.
+
+| Test                                                 | Description                                                                           |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `test_healthcheck_returns_200_when_healthy`          | All dependencies up → HTTP 200 with metrics and latency statistics                    |
+| `test_healthcheck_returns_populated_metrics`         | Metrics collector with latencies → correct `avg` and `p95` values in response         |
+| `test_healthcheck_returns_503_when_db_down`          | Database unreachable → HTTP 503 with partial metrics (series count + latencies)       |
+| `test_healthcheck_returns_503_when_mlflow_down`      | MLflow unreachable → HTTP 503 with partial metrics                                    |
 
 ---
 
@@ -132,7 +159,7 @@ Validates the orchestration logic of `PredictionService.predict()`. All external
 
 ## `tests/api/test_predict_route.py`
 
-Tests the `POST /predict/{series_id}` HTTP route via FastAPI's `TestClient`. The `PredictionService` is replaced by a mock through `dependency_overrides`, with no real I/O.
+Tests the `POST /predict/{series_id}` HTTP route via FastAPI's `TestClient`. The `PredictionService` is replaced by a mock through `dependency_overrides`, with no real I/O. The real application `lifespan` is bypassed via patch.
 
 | Test                                                     | Description                                                                        |
 | -------------------------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -143,7 +170,7 @@ Tests the `POST /predict/{series_id}` HTTP route via FastAPI's `TestClient`. The
 | `test_predict_returns_422_when_body_is_empty`            | An empty body must return HTTP 422                                                 |
 | `test_predict_returns_422_when_value_is_missing`         | A body with only `timestamp` must return HTTP 422                                  |
 | `test_predict_returns_422_when_timestamp_is_missing`     | A body with only `value` must return HTTP 422                                      |
-| `test_predict_returns_422_when_timestamp_is_not_integer` | A non-integer `timestamp` must return HTTP 422                                     |
+| `test_predict_returns_200_when_timestamp_is_string`      | A string `timestamp` must be accepted (coerced by Pydantic)                        |
 | `test_predict_returns_404_when_series_does_not_exist`    | A `ModelNotFoundError` from the service must be caught and returned as HTTP 404    |
 | `test_predict_404_response_contains_error_detail`        | The `detail` field of the 404 response must contain the `series_id`                |
 | `test_predict_returns_500_when_service_raises`           | An unexpected exception in the service must be caught and returned as HTTP 500     |
@@ -161,6 +188,49 @@ Validates the behaviour of `ModelMetadataRepository.save()`. The SQLAlchemy `Asy
 | `test_save_calls_commit`                               | `save()` must call `session.commit()` to persist the transaction                                     |
 | `test_save_returns_model_metadata_with_correct_fields` | The returned object must have the correct `series_id`, `mlflow_run_id`, `version`, and `points_used` |
 | `test_save_preserves_add_then_commit_order`            | `add()` must be called before `commit()` — the reverse order would lose data                         |
+
+---
+
+## `tests/e2e/test_fit.py`
+
+End-to-end integration tests for the `POST /fit/{series_id}` endpoint. These tests run against the live API stack (Postgres, MinIO, MLflow, API) inside Docker.
+
+| Test                                              | Description                                                                    |
+| ------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `test_fit_returns_200`                            | Valid training data returns HTTP 200                                           |
+| `test_fit_response_contains_series_id`            | Response body contains the requested `series_id`                               |
+| `test_fit_response_contains_version`              | Response body contains a version string                                        |
+| `test_fit_response_contains_points_used`          | Response body contains the number of data points consumed                      |
+| `test_fit_retrain_increments_version`             | Retraining with different data increments the version                          |
+| `test_fit_same_data_returns_same_version`         | Idempotency: identical data returns the same version                           |
+| `test_fit_rejects_too_few_points`                 | Payload with fewer than 10 points returns HTTP 422                             |
+| `test_fit_rejects_mismatched_lengths`             | Timestamps and values of different lengths return HTTP 422                     |
+| `test_fit_rejects_duplicate_timestamps`           | Duplicate timestamps return HTTP 422                                           |
+| `test_fit_rejects_unsorted_timestamps`            | Unsorted timestamps return HTTP 422                                            |
+| `test_fit_rejects_negative_timestamps`            | Negative timestamps return HTTP 422                                            |
+| `test_fit_rejects_empty_body`                     | Empty body returns HTTP 422                                                    |
+
+---
+
+## `tests/e2e/test_predict.py`
+
+End-to-end integration tests for the `POST /predict/{series_id}` endpoint. These tests run against the live API stack inside Docker. A shared `trained_series` fixture is used to guarantee a known model state.
+
+| Test                                               | Description                                                                |
+| -------------------------------------------------- | -------------------------------------------------------------------------- |
+| `test_predict_returns_200`                         | Valid prediction returns HTTP 200                                          |
+| `test_predict_response_has_anomaly_field`          | Response body contains the `anomaly` boolean                               |
+| `test_predict_response_has_model_version`          | Response body contains the `model_version` string                          |
+| `test_predict_model_version_matches_trained`       | Returned version matches the model trained in the fixture                  |
+| `test_predict_normal_point_is_not_anomaly`         | A value near the mean returns `anomaly=false`                              |
+| `test_predict_point_within_3sigma_is_not_anomaly`  | A value within `mean ± 3σ` returns `anomaly=false`                         |
+| `test_predict_point_above_3sigma_is_anomaly`       | A value above `mean + 3σ` returns `anomaly=true`                           |
+| `test_predict_with_explicit_version`               | Querying a specific `?version=` succeeds                                   |
+| `test_predict_with_unknown_version_returns_404`    | Querying a non-existent version returns HTTP 404                           |
+| `test_predict_unknown_series_returns_404`          | Predicting on an untrained series returns HTTP 404                         |
+| `test_predict_returns_422_without_body`            | Empty body returns HTTP 422                                                |
+| `test_predict_returns_422_without_value`           | Missing `value` field returns HTTP 422                                     |
+| `test_predict_returns_422_without_timestamp`       | Missing `timestamp` field returns HTTP 422                                 |
 
 ---
 
