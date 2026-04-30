@@ -7,6 +7,7 @@ A REST API for real-time anomaly detection on univariate time series data. Train
 - [How to Use](#how-to-use)
 - [Architecture](#architecture)
 - [API Reference](#api-reference)
+- [Test Samples](#test-samples)
 - [Nuances](#nuances)
 - [Benchmark Results](#benchmark-results)
 
@@ -167,6 +168,86 @@ Returns liveness status and rolling latency metrics. Returns `503` when a critic
   "series_trained": 5,
   "inference_latency_ms": { "avg": 12.4, "p95": 28.1 },
   "training_latency_ms": { "avg": 340.2, "p95": 512.0 }
+}
+```
+
+---
+
+## Test Samples
+
+Quick `curl` snippets to exercise the API after `make run`. All examples target `http://localhost:8000`.
+
+### Train a model
+
+```bash
+curl -s -X POST http://localhost:8000/fit/sensor-vibration-01 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "timestamps": [
+      1745000000, 1745000060, 1745000120, 1745000180, 1745000240,
+      1745000300, 1745000360, 1745000420, 1745000480, 1745000540,
+      1745000600, 1745000660, 1745000720, 1745000780, 1745000840
+    ],
+    "values": [10.1, 10.3, 9.9, 10.2, 10.0, 10.4, 9.8, 10.1, 10.3, 9.7,
+               10.2, 10.0, 10.1, 9.9, 10.3]
+  }' | python3 -m json.tool
+```
+
+Expected response:
+
+```json
+{ "series_id": "sensor-vibration-01", "version": "1", "points_used": 15 }
+```
+
+### Predict a normal value
+
+```bash
+curl -s -X POST http://localhost:8000/predict/sensor-vibration-01 \
+  -H "Content-Type: application/json" \
+  -d '{"timestamp": 1745000900, "value": 10.2}' | python3 -m json.tool
+```
+
+Expected response:
+
+```json
+{ "anomaly": false, "model_version": "1" }
+```
+
+### Predict an anomalous value
+
+```bash
+curl -s -X POST http://localhost:8000/predict/sensor-vibration-01 \
+  -H "Content-Type: application/json" \
+  -d '{"timestamp": 1745000960, "value": 99.9}' | python3 -m json.tool
+```
+
+Expected response:
+
+```json
+{ "anomaly": true, "model_version": "1" }
+```
+
+### Predict using a specific model version
+
+```bash
+curl -s -X POST "http://localhost:8000/predict/sensor-vibration-01?version=1" \
+  -H "Content-Type: application/json" \
+  -d '{"timestamp": 1745001020, "value": 10.1}' | python3 -m json.tool
+```
+
+### Healthcheck
+
+```bash
+curl -s http://localhost:8000/healthcheck | python3 -m json.tool
+```
+
+Expected response:
+
+```json
+{
+  "series_trained": 1,
+  "inference_latency_ms": { "avg": 0.0, "p95": 0.0 },
+  "training_latency_ms": { "avg": 0.0, "p95": 0.0 }
 }
 ```
 
