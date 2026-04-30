@@ -25,6 +25,7 @@ async def _noop_lifespan(app):
     """Bypass the real lifespan (DB cache-warming) for isolated route tests."""
     yield
 
+
 N_POINTS = 10
 _VALID_BODY = {
     "timestamps": list(range(N_POINTS)),
