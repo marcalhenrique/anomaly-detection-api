@@ -13,6 +13,7 @@ All metrics are collected via Prometheus and follow the [OpenMetrics](https://op
   - [Training Metrics](#training-metrics)
   - [HTTP Metrics](#http-metrics)
   - [Business Metrics](#business-metrics)
+- [Cache & Redis Metrics](#cache--redis-metrics)
 - [System Metrics](#system-metrics)
   - [CPU & Memory](#cpu--memory)
   - [Process & Runtime](#process--runtime)
@@ -110,6 +111,51 @@ series_trained_total
 
 ---
 
+## Cache & Redis Metrics
+
+Metrics that expose the state of the two-tier cache (L1 in-process TTLCache + L2 Redis) and the Redis memory footprint.
+
+| Metric Name                  | Type  | Description                                                                  | Labels | Unit  |
+| ---------------------------- | ----- | ---------------------------------------------------------------------------- | ------ | ----- |
+| `redis_model_keys_total`     | Gauge | Number of `model:*` keys stored in Redis (serialized model parameters)       | —      | count |
+| `redis_metadata_keys_total`  | Gauge | Number of `metadata:*` keys stored in Redis (latest + versioned metadata)    | —      | count |
+| `redis_memory_used_bytes`    | Gauge | Redis used memory reported by `INFO memory`                                  | —      | bytes |
+| `l1_cache_items_total`       | Gauge | Total items in the local per-worker L1 TTLCache (metadata + model objects)   | —      | count |
+
+**How they are collected**
+
+A background task refreshes these gauges every **10 seconds**:
+
+- **Redis keys:** `SCAN` with prefix filters (`model:*` and `metadata:*`) to avoid blocking the Redis event loop.
+- **Redis memory:** `INFO memory` → `used_memory` field.
+- **L1 cache:** `len()` on the two `TTLCache` instances (`MetadataCache._local` and `MLflowService._local`).
+
+> Because each Uvicorn worker runs in its own process, `l1_cache_items_total` reflects the state of **one worker at a time** (whichever Prometheus scraped). To see aggregate L1 state you would need to multiply by the number of workers or use a multi-process Prometheus registry.
+
+**Queries:**
+
+- **Redis model keys**
+  ```promql
+  redis_model_keys_total
+  ```
+
+- **Redis metadata keys**
+  ```promql
+  redis_metadata_keys_total
+  ```
+
+- **Redis memory (MB)**
+  ```promql
+  redis_memory_used_bytes / 1024 / 1024
+  ```
+
+- **L1 cache items**
+  ```promql
+  l1_cache_items_total
+  ```
+
+---
+
 ## System Metrics
 
 Default process and runtime metrics exposed automatically by `prometheus_client`.
@@ -158,7 +204,8 @@ The Grafana dashboard is organized into the following sections:
 3. **Predict Performance** — Latency percentiles (p50 / p95 / p99) for total predict and inference times.
 4. **Predict Breakdown** — Granular latency views: metadata lookup, model load, and operation latency.
 5. **Training Performance** — Training latency percentiles and training throughput.
-6. **Throughput** — Predict and HTTP request throughput with request rates.
+6. **Cache & Redis** — Redis key counts, memory usage, and L1 cache items per worker.
+7. **Throughput** — Predict and HTTP request throughput with request rates.
 
 ---
 
