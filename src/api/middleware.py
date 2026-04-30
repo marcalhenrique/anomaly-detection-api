@@ -8,6 +8,7 @@ from src.services.metrics_collector import HTTP_REQUEST_DURATION
 
 _SKIP_PATHS = {"/metrics", "/metrics/", "/docs", "/openapi.json", "/healthcheck"}
 
+
 class HTTPLatencyMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         if request.url.path in _SKIP_PATHS:
@@ -29,4 +30,3 @@ class HTTPLatencyMiddleware(BaseHTTPMiddleware):
         ).observe(duration_ms)
 
         return response
-

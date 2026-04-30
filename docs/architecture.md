@@ -134,6 +134,7 @@ The production architecture uses a two-tier cache to minimize latency while keep
 - **L2 — Distributed cache (Redis):** Shared across all API workers. Stores serialized models (`model:{run_id}`) and metadata (`metadata:latest:{series_id}`, `metadata:version:{series_id}:{version}`). Redis acts as the single source of truth and prevents cache fragmentation across workers.
 
 **Why two tiers?**
+
 - The pure-Redis approach (previous iteration) required a network round-trip on every predict, adding ~1–3 ms per request under load.
 - The pure in-process LRU caused cache misses when the load balancer routed a request to a worker that did not hold the model.
 - The L1+L2 hybrid gives the speed of local memory for hot series and the coherence of Redis for cold starts and worker scaling.
@@ -174,16 +175,16 @@ The endpoint returns system-level business metrics aligned with the OpenAPI cont
 
 ### 7.2 Prometheus Metrics
 
-| Metric                     | Type      | Description                                                   |
-| -------------------------- | --------- | ------------------------------------------------------------- |
-| `predict_latency_ms`       | Histogram | End-to-end prediction latency                                 |
-| `train_latency_ms`         | Histogram | End-to-end training latency                                   |
-| `http_request_duration_ms` | Histogram | HTTP request latency by `(method, path, status_code)`         |
-| `series_trained_total`     | Gauge     | Count of distinct `series_id` with at least one trained model |
-| `redis_model_keys_total`   | Gauge     | Number of `model:*` keys in Redis                             |
-| `redis_metadata_keys_total`| Gauge     | Number of `metadata:*` keys in Redis                          |
-| `redis_memory_used_bytes`  | Gauge     | Redis memory usage (from `INFO memory`)                       |
-| `l1_cache_items_total`     | Gauge     | Items in the local per-worker L1 TTLCache                     |
+| Metric                      | Type      | Description                                                   |
+| --------------------------- | --------- | ------------------------------------------------------------- |
+| `predict_latency_ms`        | Histogram | End-to-end prediction latency                                 |
+| `train_latency_ms`          | Histogram | End-to-end training latency                                   |
+| `http_request_duration_ms`  | Histogram | HTTP request latency by `(method, path, status_code)`         |
+| `series_trained_total`      | Gauge     | Count of distinct `series_id` with at least one trained model |
+| `redis_model_keys_total`    | Gauge     | Number of `model:*` keys in Redis                             |
+| `redis_metadata_keys_total` | Gauge     | Number of `metadata:*` keys in Redis                          |
+| `redis_memory_used_bytes`   | Gauge     | Redis memory usage (from `INFO memory`)                       |
+| `l1_cache_items_total`      | Gauge     | Items in the local per-worker L1 TTLCache                     |
 
 All metrics are scraped by Prometheus and visualized in a pre-provisioned Grafana dashboard (`docker/grafana/provisioning/dashboards/anomaly_api.json`). The dashboard includes a dedicated **Cache & Redis** section showing key counts, memory usage, and L1 occupancy per worker.
 

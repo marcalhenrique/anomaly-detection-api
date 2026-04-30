@@ -18,6 +18,7 @@ from src.api.dependencies import _mlflow_service, _metadata_cache, get_metrics_c
 
 logger = get_logger(__name__)
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
@@ -74,6 +75,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("shutting_down")
     await engine.dispose()
 
+
 def create_app() -> FastAPI:
     settings = get_settings()
 
@@ -94,4 +96,3 @@ def create_app() -> FastAPI:
 
     logger.info("app_created", port=settings.api_port)
     return app
-

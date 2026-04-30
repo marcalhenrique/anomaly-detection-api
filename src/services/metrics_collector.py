@@ -66,11 +66,13 @@ SERIES_TRAINED = Gauge(
     "Number of distinct series with at least one trained model",
 )
 
+
 @contextmanager
 def timed(label: str, timings: dict[str, float]) -> Generator[None, None, None]:
     t = time.perf_counter()
     yield
     timings[label] = round((time.perf_counter() - t) * 1000, 3)
+
 
 class MetricsCollector:
     def __init__(self, latency_window: int = 1000) -> None:
@@ -128,4 +130,3 @@ class MetricsCollector:
         l1_meta = len(metadata_cache._local)
         l1_model = len(mlflow_service._local)
         L1_CACHE_ITEMS.set(l1_meta + l1_model)
-

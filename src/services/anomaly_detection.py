@@ -2,6 +2,7 @@ import numpy as np
 
 from src.core.time_series import DataPoint, TimeSeries
 
+
 class AnomalyDetectionModel:
     def fit(self, data: TimeSeries) -> "AnomalyDetectionModel":
         values = [d.value for d in data.data]
@@ -11,4 +12,3 @@ class AnomalyDetectionModel:
 
     def predict(self, data_point: DataPoint) -> bool:
         return data_point.value > self.mean + 3 * self.std
-

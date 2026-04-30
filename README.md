@@ -51,18 +51,18 @@ cp .env.example .env
 
 The `compose.yaml` reads all variables directly via `${VAR}` interpolation — port mappings, credentials and stack behaviour are all controlled from `.env`. Key variables:
 
-| Variable                     | Default    | Description                                   |
-| ---------------------------- | ---------- | --------------------------------------------- |
-| `API_PORT`                   | `8000`     | API server port                               |
-| `ZSCORE_THRESHOLD`           | `3.0`      | Standard deviations used as anomaly threshold |
-| `LOG_LEVEL`                  | `DEBUG`    | Log verbosity (`DEBUG`, `INFO`, `WARNING`)    |
-| `LOCAL_CACHE_MAXSIZE`        | `100`      | Max models held in the in-process LRU cache   |
-| `LOCAL_CACHE_TTL_SECONDS`    | `60`       | TTL for in-process cache entries (seconds)    |
-| `REDIS_MODEL_TTL_SECONDS`    | `86400`    | Sliding TTL for model objects in Redis (24 h) |
-| `REDIS_METADATA_TTL_SECONDS` | `3600`     | Fixed TTL for metadata keys in Redis (1 h)    |
-| `POSTGRES_*`                 | see file   | PostgreSQL connection settings                |
-| `MINIO_*`                    | see file   | MinIO / S3 credentials and bucket             |
-| `MLFLOW_*`                   | see file   | MLflow tracking server settings               |
+| Variable                     | Default  | Description                                   |
+| ---------------------------- | -------- | --------------------------------------------- |
+| `API_PORT`                   | `8000`   | API server port                               |
+| `ZSCORE_THRESHOLD`           | `3.0`    | Standard deviations used as anomaly threshold |
+| `LOG_LEVEL`                  | `DEBUG`  | Log verbosity (`DEBUG`, `INFO`, `WARNING`)    |
+| `LOCAL_CACHE_MAXSIZE`        | `100`    | Max models held in the in-process LRU cache   |
+| `LOCAL_CACHE_TTL_SECONDS`    | `60`     | TTL for in-process cache entries (seconds)    |
+| `REDIS_MODEL_TTL_SECONDS`    | `86400`  | Sliding TTL for model objects in Redis (24 h) |
+| `REDIS_METADATA_TTL_SECONDS` | `3600`   | Fixed TTL for metadata keys in Redis (1 h)    |
+| `POSTGRES_*`                 | see file | PostgreSQL connection settings                |
+| `MINIO_*`                    | see file | MinIO / S3 credentials and bucket             |
+| `MLFLOW_*`                   | see file | MLflow tracking server settings               |
 
 ### Start
 
@@ -210,4 +210,3 @@ Full per-request statistics in [`reports/benchmark.md`](reports/benchmark.md). T
 ## Architecture
 
 For the full architectural breakdown, layered design, flow diagrams (fit, predict, cache/TTL) and design decisions see [`docs/architecture.md`](docs/architecture.md).
-

@@ -8,6 +8,7 @@ from src.core.redis_client import get_redis_client
 
 _settings = get_settings()
 
+
 def _metadata_to_dict(metadata: ModelMetadata) -> dict:
     return {
         "id": metadata.id,
@@ -18,6 +19,7 @@ def _metadata_to_dict(metadata: ModelMetadata) -> dict:
         "data_hash": metadata.data_hash,
         "trained_at": metadata.trained_at.isoformat() if metadata.trained_at else None,
     }
+
 
 def _dict_to_metadata(data: dict) -> ModelMetadata:
     from datetime import datetime
@@ -34,6 +36,7 @@ def _dict_to_metadata(data: dict) -> ModelMetadata:
     if trained_at:
         obj.trained_at = datetime.fromisoformat(trained_at)
     return obj
+
 
 class MetadataCache:
     def __init__(self) -> None:
@@ -64,12 +67,9 @@ class MetadataCache:
         )
 
         self._local[self._local_key(metadata.series_id)] = metadata
-        self._local[
-            self._local_key(metadata.series_id, metadata.version)
-        ] = metadata
+        self._local[self._local_key(metadata.series_id, metadata.version)] = metadata
 
     def get_latest(self, series_id: str) -> ModelMetadata | None:
-
         local_key = self._local_key(series_id)
         cached = self._local.get(local_key)
         if cached is not None:
@@ -84,7 +84,6 @@ class MetadataCache:
         return metadata
 
     def get_by_version(self, series_id: str, version: str) -> ModelMetadata | None:
-
         local_key = self._local_key(series_id, version)
         cached = self._local.get(local_key)
         if cached is not None:
@@ -97,4 +96,3 @@ class MetadataCache:
         metadata = _dict_to_metadata(json.loads(payload))
         self._local[local_key] = metadata
         return metadata
-

@@ -8,11 +8,7 @@
     "to": "now"
   },
   "timezone": "browser",
-  "tags": [
-    "anomaly",
-    "api",
-    "performance"
-  ],
+  "tags": ["anomaly", "api", "performance"],
   "panels": [
     {
       "type": "row",
@@ -63,9 +59,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
+          "calcs": ["lastNotNull"]
         },
         "orientation": "auto",
         "textMode": "auto",
@@ -123,9 +117,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
+          "calcs": ["lastNotNull"]
         },
         "orientation": "auto",
         "textMode": "auto",
@@ -179,9 +171,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
+          "calcs": ["lastNotNull"]
         },
         "orientation": "auto",
         "textMode": "auto",
@@ -243,9 +233,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
+          "calcs": ["lastNotNull"]
         },
         "orientation": "auto",
         "textMode": "auto",
@@ -307,9 +295,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
+          "calcs": ["lastNotNull"]
         },
         "orientation": "auto",
         "textMode": "auto",
@@ -371,9 +357,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
+          "calcs": ["lastNotNull"]
         },
         "orientation": "auto",
         "textMode": "auto",
@@ -452,14 +436,9 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": [
-            "mean",
-            "max"
-          ]
+          "calcs": ["mean", "max"]
         },
-        "timezones": [
-          "browser"
-        ]
+        "timezones": ["browser"]
       },
       "targets": [
         {
@@ -520,14 +499,9 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": [
-            "mean",
-            "max"
-          ]
+          "calcs": ["mean", "max"]
         },
-        "timezones": [
-          "browser"
-        ]
+        "timezones": ["browser"]
       },
       "targets": [
         {
@@ -609,14 +583,9 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": [
-            "mean",
-            "max"
-          ]
+          "calcs": ["mean", "max"]
         },
-        "timezones": [
-          "browser"
-        ]
+        "timezones": ["browser"]
       },
       "targets": [
         {
@@ -693,14 +662,9 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": [
-            "mean",
-            "max"
-          ]
+          "calcs": ["mean", "max"]
         },
-        "timezones": [
-          "browser"
-        ]
+        "timezones": ["browser"]
       },
       "targets": [
         {
@@ -782,14 +746,9 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": [
-            "mean",
-            "max"
-          ]
+          "calcs": ["mean", "max"]
         },
-        "timezones": [
-          "browser"
-        ]
+        "timezones": ["browser"]
       },
       "targets": [
         {
@@ -858,14 +817,9 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": [
-            "mean",
-            "max"
-          ]
+          "calcs": ["mean", "max"]
         },
-        "timezones": [
-          "browser"
-        ]
+        "timezones": ["browser"]
       },
       "targets": [
         {
@@ -934,14 +888,9 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": [
-            "mean",
-            "max"
-          ]
+          "calcs": ["mean", "max"]
         },
-        "timezones": [
-          "browser"
-        ]
+        "timezones": ["browser"]
       },
       "targets": [
         {
@@ -1031,14 +980,9 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": [
-            "mean",
-            "max"
-          ]
+          "calcs": ["mean", "max"]
         },
-        "timezones": [
-          "browser"
-        ]
+        "timezones": ["browser"]
       },
       "targets": [
         {
@@ -1107,14 +1051,9 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": [
-            "mean",
-            "max"
-          ]
+          "calcs": ["mean", "max"]
         },
-        "timezones": [
-          "browser"
-        ]
+        "timezones": ["browser"]
       },
       "targets": [
         {
@@ -1188,14 +1127,9 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": [
-            "mean",
-            "max"
-          ]
+          "calcs": ["mean", "max"]
         },
-        "timezones": [
-          "browser"
-        ]
+        "timezones": ["browser"]
       },
       "targets": [
         {
@@ -1256,14 +1190,9 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": [
-            "mean",
-            "max"
-          ]
+          "calcs": ["mean", "max"]
         },
-        "timezones": [
-          "browser"
-        ]
+        "timezones": ["browser"]
       },
       "targets": [
         {
@@ -1331,9 +1260,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
+          "calcs": ["lastNotNull"]
         },
         "orientation": "auto",
         "textMode": "auto",
@@ -1385,9 +1312,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
+          "calcs": ["lastNotNull"]
         },
         "orientation": "auto",
         "textMode": "auto",
@@ -1447,9 +1372,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
+          "calcs": ["lastNotNull"]
         },
         "orientation": "auto",
         "textMode": "auto",
@@ -1509,9 +1432,7 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
+          "calcs": ["lastNotNull"]
         },
         "orientation": "auto",
         "textMode": "auto",
