@@ -1,19 +1,19 @@
 .PHONY: run stop logs clean dev test test-unit test-e2e benchmark populate inference
 
 run:
-	docker compose up postgres minio minio-init mlflow api prometheus grafana -d --build
+	docker compose up redis postgres minio minio-init mlflow api prometheus grafana -d --build
 
 stop:
 	docker compose down
 
 logs:
-	docker compose logs -f postgres minio mlflow
+	docker compose logs -f postgres redis minio mlflow
 
 clean:
 	docker compose down --volumes --remove-orphans
 
 dev:
-	docker compose up postgres minio minio-init mlflow -d --build
+	docker compose up redis postgres minio minio-init mlflow -d --build
 	uv run alembic upgrade head
 	uv run run_local.py
 

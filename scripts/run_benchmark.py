@@ -335,7 +335,9 @@ def _fetch_run_ids(
     return asyncio.run(_fetch_run_ids_async(miss_series, versions))
 
 
-def _evict_from_redis(run_ids: list[str], miss_series: list[str], versions: dict[str, str]) -> None:
+def _evict_from_redis(
+    run_ids: list[str], miss_series: list[str], versions: dict[str, str]
+) -> None:
     """Delete model and metadata keys from Redis so the next predict goes to MLflow/MinIO."""
     r = redis.Redis(
         host=os.getenv("REDIS_HOST", "localhost"),
@@ -470,8 +472,8 @@ def build_markdown(
         "",
         "## Configuration",
         "",
-        f"| Parameter | Value |",
-        f"|-----------|-------|",
+        "| Parameter | Value |",
+        "|-----------|-------|",
         f"| **Generated at** | {started_at} |",
         f"| **Base URL** | {base_url} |",
         f"| **Redis cache size** | {cache_size} |",

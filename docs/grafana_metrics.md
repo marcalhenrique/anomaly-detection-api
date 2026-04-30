@@ -115,12 +115,12 @@ series_trained_total
 
 Metrics that expose the state of the two-tier cache (L1 in-process TTLCache + L2 Redis) and the Redis memory footprint.
 
-| Metric Name                  | Type  | Description                                                                  | Labels | Unit  |
-| ---------------------------- | ----- | ---------------------------------------------------------------------------- | ------ | ----- |
-| `redis_model_keys_total`     | Gauge | Number of `model:*` keys stored in Redis (serialized model parameters)       | —      | count |
-| `redis_metadata_keys_total`  | Gauge | Number of `metadata:*` keys stored in Redis (latest + versioned metadata)    | —      | count |
-| `redis_memory_used_bytes`    | Gauge | Redis used memory reported by `INFO memory`                                  | —      | bytes |
-| `l1_cache_items_total`       | Gauge | Total items in the local per-worker L1 TTLCache (metadata + model objects)   | —      | count |
+| Metric Name                 | Type  | Description                                                                | Labels | Unit  |
+| --------------------------- | ----- | -------------------------------------------------------------------------- | ------ | ----- |
+| `redis_model_keys_total`    | Gauge | Number of `model:*` keys stored in Redis (serialized model parameters)     | —      | count |
+| `redis_metadata_keys_total` | Gauge | Number of `metadata:*` keys stored in Redis (latest + versioned metadata)  | —      | count |
+| `redis_memory_used_bytes`   | Gauge | Redis used memory reported by `INFO memory`                                | —      | bytes |
+| `l1_cache_items_total`      | Gauge | Total items in the local per-worker L1 TTLCache (metadata + model objects) | —      | count |
 
 **How they are collected**
 
@@ -135,16 +135,19 @@ A background task refreshes these gauges every **10 seconds**:
 **Queries:**
 
 - **Redis model keys**
+
   ```promql
   redis_model_keys_total
   ```
 
 - **Redis metadata keys**
+
   ```promql
   redis_metadata_keys_total
   ```
 
 - **Redis memory (MB)**
+
   ```promql
   redis_memory_used_bytes / 1024 / 1024
   ```

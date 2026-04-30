@@ -12,6 +12,7 @@ from src.core.redis_client import get_redis_client
 
 settings = get_settings()
 
+
 class MLflowService:
     def __init__(self, tracking_uri: str, artifact_bucket: str) -> None:
         mlflow.set_tracking_uri(tracking_uri)
@@ -27,7 +28,6 @@ class MLflowService:
         return f"model:{run_id}"
 
     def _get_cached_model(self, run_id: str) -> AnomalyDetectionModel | None:
-
         cached = self._local.get(run_id)
         if cached is not None:
             return cached
@@ -132,4 +132,3 @@ class MLflowService:
 
     def get_cached_model(self, run_id: str) -> AnomalyDetectionModel | None:
         return self._get_cached_model(run_id)
-

@@ -150,4 +150,3 @@ async def test_redis_lock_raises_timeout_when_blocked_too_long(fake_redis) -> No
         with pytest.raises(TimeoutError):
             async with lock.acquire("sensor-timeout"):
                 pass  # pragma: no cover
-

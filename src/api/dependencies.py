@@ -26,14 +26,18 @@ _mlflow_service = MLflowService(
     artifact_bucket=settings.minio_bucket_name,
 )
 
+
 def get_metadata_cache() -> MetadataCache:
     return _metadata_cache
+
 
 def get_mlflow_service() -> MLflowService:
     return _mlflow_service
 
+
 def get_metrics_collector() -> MetricsCollector:
     return _metrics_collector
+
 
 def get_training_service(
     db: AsyncSession = Depends(get_db),
@@ -49,6 +53,7 @@ def get_training_service(
         metadata_cache=metadata_cache,
     )
 
+
 def get_prediction_service(
     mlflow_svc: MLflowService = Depends(get_mlflow_service),
     metadata_cache: MetadataCache = Depends(get_metadata_cache),
@@ -57,4 +62,3 @@ def get_prediction_service(
         mlflow_svc=mlflow_svc,
         metadata_cache=metadata_cache,
     )
-

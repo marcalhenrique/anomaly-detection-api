@@ -16,6 +16,7 @@ _EXAMPLE_TIMESTAMPS = [
 ]
 _EXAMPLE_VALUES = [10.1, 10.3, 9.8, 10.0, 10.2, 9.9, 10.1, 10.4, 9.7, 10.0]
 
+
 class TrainRequest(BaseModel):
     timestamps: list[int] = Field(
         ...,
@@ -50,6 +51,7 @@ class TrainRequest(BaseModel):
             raise ValueError("values must not be constant")
         return self
 
+
 class TrainResponse(BaseModel):
     series_id: str = Field(
         ...,
@@ -75,6 +77,7 @@ class TrainResponse(BaseModel):
         }
     }
 
+
 class PredictRequest(BaseModel):
     timestamp: str = Field(
         ...,
@@ -90,6 +93,7 @@ class PredictRequest(BaseModel):
     model_config = {
         "json_schema_extra": {"examples": [{"timestamp": "1745000600", "value": 42.7}]}
     }
+
 
 class PredictResponse(BaseModel):
     anomaly: bool = Field(
@@ -107,11 +111,13 @@ class PredictResponse(BaseModel):
         "json_schema_extra": {"examples": [{"anomaly": True, "model_version": "3"}]}
     }
 
+
 class HealthCheckMetrics(BaseModel):
     avg: float = Field(None, description="Average value of the series", examples=[12.4])
     p95: float = Field(
         None, description="95th percentile of the series", examples=[28.1]
     )
+
 
 class HealthCheckResponse(BaseModel):
     series_trained: int = Field(
@@ -137,4 +143,3 @@ class HealthCheckResponse(BaseModel):
             ]
         }
     }
-

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import structlog
 
+
 def configure_logging(
     console_level: int | str = logging.DEBUG,
     file_level: int | str = logging.DEBUG,
@@ -77,9 +78,10 @@ def configure_logging(
     file_handler.setFormatter(file_formatter)
     root.addHandler(file_handler)
 
+
 def get_logger(name: str = __name__) -> structlog.stdlib.BoundLogger:
     return structlog.get_logger(name)
 
+
 def _ensure_log_dir(log_path: str) -> None:
     Path(log_path).parent.mkdir(parents=True, exist_ok=True)
-

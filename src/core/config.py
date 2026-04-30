@@ -3,6 +3,7 @@ from functools import lru_cache
 from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class Settings(BaseSettings):
     api_port: int = 8000
     log_level: str = "INFO"
@@ -45,7 +46,7 @@ class Settings(BaseSettings):
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
 
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

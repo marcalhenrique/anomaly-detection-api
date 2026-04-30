@@ -8,6 +8,7 @@ from src.api.schemas import HealthCheckResponse, HealthCheckMetrics
 
 router = APIRouter(tags=["Health"])
 
+
 @router.get("/healthcheck", response_model=HealthCheckResponse)
 async def healthcheck() -> HealthCheckResponse | JSONResponse:
     healthy = True
@@ -40,4 +41,3 @@ async def healthcheck() -> HealthCheckResponse | JSONResponse:
         )
 
     return response_data
-

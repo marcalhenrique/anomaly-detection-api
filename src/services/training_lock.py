@@ -10,9 +10,11 @@ from src.core.config import get_settings
 
 _settings = get_settings()
 
+
 class TrainingLockProtocol(Protocol):
     @asynccontextmanager
     async def acquire(self, series_id: str) -> AsyncIterator[None]: ...
+
 
 class LocalTrainingLock:
     def __init__(self) -> None:
@@ -25,6 +27,7 @@ class LocalTrainingLock:
 
         async with self._locks[series_id]:
             yield
+
 
 class RedisTrainingLock:
     def __init__(self, redis_client: aioredis.Redis | None = None) -> None:
@@ -62,4 +65,3 @@ class RedisTrainingLock:
             current = await self._redis.get(key)
             if current == token:
                 await self._redis.delete(key)
-

@@ -17,12 +17,12 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Trainining.TrainResponse'
+                $ref: "#/components/schemas/Trainining.TrainResponse"
       tags:
         - Training
       requestBody:
@@ -30,7 +30,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Trainining.TrainData'
+              $ref: "#/components/schemas/Trainining.TrainData"
   /healthcheck:
     get:
       operationId: HealthCheck_healthcheck
@@ -39,12 +39,12 @@ paths:
         You may implement all the data in the contract, add more data, or implement it partially.
       parameters: []
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthCheck.HealthCheckResponse'
+                $ref: "#/components/schemas/HealthCheck.HealthCheckResponse"
       tags:
         - Health Check
   /predict/{series_id}:
@@ -63,12 +63,12 @@ paths:
             type: string
           explode: false
       responses:
-        '200':
+        "200":
           description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Prediction.PredictResponse'
+                $ref: "#/components/schemas/Prediction.PredictResponse"
       tags:
         - Prediction
       requestBody:
@@ -76,7 +76,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Prediction.PredictData'
+              $ref: "#/components/schemas/Prediction.PredictData"
 components:
   schemas:
     HealthCheck.HealthCheckResponse:
@@ -90,9 +90,9 @@ components:
           type: integer
           format: int32
         inference_latency_ms:
-          $ref: '#/components/schemas/HealthCheck.Metrics'
+          $ref: "#/components/schemas/HealthCheck.Metrics"
         training_latency_ms:
-          $ref: '#/components/schemas/HealthCheck.Metrics'
+          $ref: "#/components/schemas/HealthCheck.Metrics"
     HealthCheck.Metrics:
       type: object
       properties:
@@ -150,4 +150,3 @@ components:
         points_used:
           type: integer
           format: int32
-

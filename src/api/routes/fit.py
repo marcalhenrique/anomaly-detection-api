@@ -6,6 +6,7 @@ from src.services.training_service import TrainingService
 
 router = APIRouter()
 
+
 @router.post("/fit/{series_id}", response_model=TrainResponse, tags=["Training"])
 async def fit(
     series_id: str,
@@ -16,4 +17,3 @@ async def fit(
         return await svc.fit(series_id=series_id, body=body)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-

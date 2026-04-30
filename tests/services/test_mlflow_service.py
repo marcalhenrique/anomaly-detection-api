@@ -45,18 +45,14 @@ def mock_mlflow_client():
 def svc(fake_redis, mock_mlflow_client):
     """MLflowService with a fakeredis backend and a mocked MlflowClient."""
     with (
-        patch(
-            "src.services.mlflow_service.get_redis_client", return_value=fake_redis
-        ),
+        patch("src.services.mlflow_service.get_redis_client", return_value=fake_redis),
         patch("src.services.mlflow_service.mlflow.set_tracking_uri"),
         patch(
             "src.services.mlflow_service.mlflow.tracking.MlflowClient",
             return_value=mock_mlflow_client,
         ),
     ):
-        return MLflowService(
-            tracking_uri=TRACKING_URI, artifact_bucket=ARTIFACT_BUCKET
-        )
+        return MLflowService(tracking_uri=TRACKING_URI, artifact_bucket=ARTIFACT_BUCKET)
 
 
 # ---------------------------------------------------------------------------
@@ -159,9 +155,7 @@ def test_load_model_caches_downloaded_model(svc, mock_mlflow_client, tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_save_model_returns_run_id_and_model_version(
-    svc, mock_mlflow_client, tmp_path
-):
+def test_save_model_returns_run_id_and_model_version(svc, mock_mlflow_client, tmp_path):
     """save_model() must return the MLflow run_id and registered model version."""
     mock_mlflow_client.get_experiment_by_name.return_value = None
     mock_mlflow_client.create_experiment.return_value = "exp-1"
@@ -321,7 +315,9 @@ def test_save_model_logs_training_data_artifact_when_provided(svc, mock_mlflow_c
     assert artifact_paths == ["model", "model"]
 
 
-def test_save_model_does_not_log_training_data_when_not_provided(svc, mock_mlflow_client):
+def test_save_model_does_not_log_training_data_when_not_provided(
+    svc, mock_mlflow_client
+):
     """save_model() must log only model.pkl when timestamps/values are omitted."""
     _setup_save_model_mocks(mock_mlflow_client)
 
@@ -335,7 +331,9 @@ def test_save_model_does_not_log_training_data_when_not_provided(svc, mock_mlflo
 # ---------------------------------------------------------------------------
 
 
-def test_save_model_succeeds_when_create_registered_model_raises(svc, mock_mlflow_client):
+def test_save_model_succeeds_when_create_registered_model_raises(
+    svc, mock_mlflow_client
+):
     """save_model() must not propagate an exception from create_registered_model."""
     _setup_save_model_mocks(mock_mlflow_client)
     mock_mlflow_client.create_registered_model.side_effect = Exception(
