@@ -52,18 +52,33 @@ cp .env.example .env
 
 The `compose.yaml` reads all variables directly via `${VAR}` interpolation — port mappings, credentials and stack behaviour are all controlled from `.env`. Key variables:
 
-| Variable                     | Default  | Description                                   |
-| ---------------------------- | -------- | --------------------------------------------- |
-| `API_PORT`                   | `8000`   | API server port                               |
-| `ZSCORE_THRESHOLD`           | `3.0`    | Standard deviations used as anomaly threshold |
-| `LOG_LEVEL`                  | `DEBUG`  | Log verbosity (`DEBUG`, `INFO`, `WARNING`)    |
-| `LOCAL_CACHE_MAXSIZE`        | `100`    | Max models held in the in-process LRU cache   |
-| `LOCAL_CACHE_TTL_SECONDS`    | `60`     | TTL for in-process cache entries (seconds)    |
-| `REDIS_MODEL_TTL_SECONDS`    | `86400`  | Sliding TTL for model objects in Redis (24 h) |
-| `REDIS_METADATA_TTL_SECONDS` | `3600`   | Fixed TTL for metadata keys in Redis (1 h)    |
-| `POSTGRES_*`                 | see file | PostgreSQL connection settings                |
-| `MINIO_*`                    | see file | MinIO / S3 credentials and bucket             |
-| `MLFLOW_*`                   | see file | MLflow tracking server settings               |
+| Variable                     | Default                       | Description                                      |
+| ---------------------------- | ----------------------------- | ------------------------------------------------ |
+| `LOG_LEVEL`                  | `DEBUG`                       | Log verbosity (`DEBUG`, `INFO`, `WARNING`)       |
+| `API_PORT`                   | `8000`                        | API server port                                  |
+| `HEALTHCHECK_LATENCY_WINDOW` | `1000`                        | Rolling window size for healthcheck latency (ms) |
+| `POSTGRES_HOST`              | `localhost`                   | PostgreSQL host                                  |
+| `POSTGRES_PORT`              | `5432`                        | PostgreSQL port                                  |
+| `POSTGRES_DB`                | `anomaly_detection_db`        | PostgreSQL database name                         |
+| `POSTGRES_USER`              | `postgres`                    | PostgreSQL user                                  |
+| `POSTGRES_PASSWORD`          | `postgres`                    | PostgreSQL password                              |
+| `MINIO_ENDPOINT_URL`         | `http://localhost:9000`       | MinIO S3-compatible endpoint                     |
+| `MINIO_PORT`                 | `9000`                        | MinIO API port                                   |
+| `MINIO_CONSOLE_PORT`         | `9001`                        | MinIO console port                               |
+| `MINIO_ACCESS_KEY`           | `minioadmin`                  | MinIO access key                                 |
+| `MINIO_SECRET_KEY`           | `minioadmin`                  | MinIO secret key                                 |
+| `MINIO_BUCKET_NAME`          | `anomaly-detection`           | MinIO bucket for model artifacts                 |
+| `MLFLOW_PORT`                | `5001`                        | MLflow tracking server port                      |
+| `MLFLOW_TRACKING_URI`        | `http://localhost:5001`       | MLflow tracking URI                              |
+| `MLFLOW_S3_ENDPOINT_URL`     | `http://localhost:9000`       | S3 endpoint used by MLflow for artifact storage  |
+| `MLFLOW_POSTGRES_DB`         | `mlflow_db`                   | PostgreSQL database name for MLflow              |
+| `REDIS_HOST`                 | `localhost`                   | Redis host                                       |
+| `REDIS_PORT`                 | `6379`                        | Redis port                                       |
+| `REDIS_DB`                   | `0`                           | Redis database index                             |
+| `REDIS_MODEL_TTL_SECONDS`    | `86400`                       | Sliding TTL for model objects in Redis (24 h)    |
+| `REDIS_METADATA_TTL_SECONDS` | `3600`                        | Fixed TTL for metadata keys in Redis (1 h)       |
+| `LOCAL_CACHE_MAXSIZE`        | `100`                         | Max models held in the in-process LRU cache      |
+| `LOCAL_CACHE_TTL_SECONDS`    | `60`                          | TTL for in-process cache entries (seconds)       |
 
 ### Start
 
@@ -179,7 +194,65 @@ Quick `curl` snippets to exercise the API after `make run`. All examples target 
 
 ### Train a model
 
+```bash# Anomaly Detection API
+
+A REST API for real-time anomaly detection on univariate time series data. Train per-series models, version them automatically, persist weights in MLflow/MinIO, and run predictions at scale.
+
+## Table of Contents
+
+- [How to Use](#how-to-use)
+- [Architecture](#architecture)
+- [API Reference](#api-reference)
+- [Test Samples](#test-samples)
+- [Nuances](#nuances)
+- [Benchmark Results](#benchmark-results)
+
+---
+
+## How to Use
+
+### Requirements
+
+Docker and Docker Compose. The following host ports must be free before starting:
+
+| Port | Service       |
+| ---- | ------------- |
+| 8000 | API           |
+| 5432 | PostgreSQL    |
+| 5001 | MLflow UI     |
+| 9000 | MinIO (S3)    |
+| 9001 | MinIO console |
+| 6379 | Redis         |
+| 9090 | Prometheus    |
+| 3000 | Grafana       |
+
+### Stack
+
+| Service        | Description                          |
+| -------------- | ------------------------------------ |
+| **api**        | FastAPI application                  |
+| **postgres**   | Model metadata persistence           |
+| **mlflow**     | Model registry and artifact tracking |
+| **minio**      | S3-compatible artifact store         |
+| **redis**      | Distributed cache & training locks   |
+| **prometheus** | Metrics collection                   |
+| **grafana**    | Metrics dashboard                    |
+
+### Environment
+
+Copy `.env.example` to `.env` before starting:
+
 ```bash
+cp .env.example .env
+```
+
+The `compose.yaml` reads all variables directly via `${VAR}` interpolation — port mappings, credentials and stack behaviour are all controlled from `.env`. Key variables:
+
+| Variable                     | Default  | Description                                   |
+| ---------------------------- | -------- | --------------------------------------------- |
+| `API_PORT`                   | `8000`   | API server port                               |
+| `ZSCORE_THRESHOLD`           | `3.0`    | Standard deviations used as anomaly threshold |
+
 curl -s -X POST http://localhost:8000/fit/sensor-vibration-01 \
   -H "Content-Type: application/json" \
   -d '{
