@@ -1,6 +1,8 @@
 """
 Populate training data for anomaly detection series.
 
+Uses requests + ThreadPoolExecutor for efficient concurrency inside Docker.
+
 Usage:
     python scripts/populate_training.py [OPTIONS]
 
@@ -19,13 +21,13 @@ Examples:
 """
 
 import argparse
-import asyncio
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
-import httpx
 import numpy as np
+import requests
 
 
 def generate_series_data(
@@ -51,43 +53,41 @@ def generate_series_data(
     return timestamps, values
 
 
-async def train_series(
-    client: httpx.AsyncClient,
+def train_series(
+    session: requests.Session,
     base_url: str,
     series_id: str,
     timestamps: list[int],
     values: list[float],
-    semaphore: asyncio.Semaphore,
 ) -> dict:
-    async with semaphore:
-        start = time.perf_counter()
-        try:
-            response = await client.post(
-                f"{base_url}/fit/{series_id}",
-                json={"timestamps": timestamps, "values": values},
-                timeout=60.0,
-            )
-            elapsed_ms = (time.perf_counter() - start) * 1000
-            response.raise_for_status()
-            data = response.json()
-            return {
-                "series_id": series_id,
-                "version": data.get("version", "?"),
-                "points_used": data.get("points_used", len(values)),
-                "latency_ms": elapsed_ms,
-                "status": "ok",
-                "error": None,
-            }
-        except Exception as exc:
-            elapsed_ms = (time.perf_counter() - start) * 1000
-            return {
-                "series_id": series_id,
-                "version": "-",
-                "points_used": 0,
-                "latency_ms": elapsed_ms,
-                "status": "error",
-                "error": str(exc),
-            }
+    start = time.perf_counter()
+    try:
+        response = session.post(
+            f"{base_url}/fit/{series_id}",
+            json={"timestamps": timestamps, "values": values},
+            timeout=60.0,
+        )
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        response.raise_for_status()
+        data = response.json()
+        return {
+            "series_id": series_id,
+            "version": data.get("version", "?"),
+            "points_used": data.get("points_used", len(values)),
+            "latency_ms": elapsed_ms,
+            "status": "ok",
+            "error": None,
+        }
+    except Exception as exc:
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        return {
+            "series_id": series_id,
+            "version": "-",
+            "points_used": 0,
+            "latency_ms": elapsed_ms,
+            "status": "error",
+            "error": str(exc),
+        }
 
 
 def build_markdown(
@@ -143,7 +143,7 @@ def build_markdown(
     return "\n".join(lines) + "\n"
 
 
-async def main(args: argparse.Namespace) -> None:
+def main(args: argparse.Namespace) -> None:
     started_at = datetime.now(timezone.utc).isoformat()
     rng = np.random.default_rng(seed=args.seed)
 
@@ -157,24 +157,30 @@ async def main(args: argparse.Namespace) -> None:
     print(f"Concurrency: {args.concurrency}")
     print()
 
-    semaphore = asyncio.Semaphore(args.concurrency)
-    tasks = []
     series_data = {}
-
     for series_id in series_ids:
         timestamps, values = generate_series_data(args.points, rng)
         series_data[series_id] = (timestamps, values)
 
+    results: list[dict] = []
     t0 = time.perf_counter()
-    async with httpx.AsyncClient() as client:
-        for series_id in series_ids:
-            timestamps, values = series_data[series_id]
-            tasks.append(
-                train_series(
-                    client, args.base_url, series_id, timestamps, values, semaphore
-                )
-            )
-        results = await asyncio.gather(*tasks)
+
+    session = requests.Session()
+    with ThreadPoolExecutor(max_workers=args.concurrency) as executor:
+        futures = {
+            executor.submit(
+                train_series,
+                session,
+                args.base_url,
+                series_id,
+                series_data[series_id][0],
+                series_data[series_id][1],
+            ): series_id
+            for series_id in series_ids
+        }
+        for future in as_completed(futures):
+            results.append(future.result())
+
     total_elapsed = time.perf_counter() - t0
 
     # Print table to terminal
@@ -254,4 +260,4 @@ def parse_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    asyncio.run(main(parse_args()))
+    main(parse_args())
