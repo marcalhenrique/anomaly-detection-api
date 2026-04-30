@@ -1,0 +1,114 @@
+<mxfile host="65bd71144e">
+    <diagram id="ttl-cache" name="Cache &amp; TTL">
+        <mxGraphModel dx="1184" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1160" pageHeight="960" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="Cache Hierarchy &amp; TTL Configuration" style="text;strokeColor=none;fillColor=none;fontSize=18;fontStyle=1;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="230" y="10" width="700" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="hdr-meta" value="MetadataCache" style="text;strokeColor=none;fillColor=none;fontSize=13;fontStyle=1;align=center;fontColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="120" y="50" width="380" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="hdr-model" value="MLflowService  (model cache)" style="text;strokeColor=none;fillColor=none;fontSize=13;fontStyle=1;align=center;fontColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="620" y="50" width="420" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="tier-l1" value="L1 — In-Process Cache  (per API instance)" style="swimlane;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="84" width="1040" height="170" as="geometry"/>
+                </mxCell>
+                <mxCell id="l1-meta" value="&lt;b&gt;TTLCache&lt;/b&gt;&#xa;maxsize = 100 entries&#xa;ttl = 60 s&#xa;&#xa;Keys:&#xa;  latest:{series_id}&#xa;  version:{series_id}:{ver}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=10;verticalAlign=top;" parent="tier-l1" vertex="1">
+                    <mxGeometry x="60" y="40" width="300" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="l1-model" value="&lt;b&gt;TTLCache&lt;/b&gt;&#xa;maxsize = 100 entries&#xa;ttl = 60 s&#xa;&#xa;Key: {run_id}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=10;verticalAlign=top;" parent="tier-l1" vertex="1">
+                    <mxGeometry x="560" y="40" width="420" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="tier-l2" value="L2 — Distributed Cache  (Redis)" style="swimlane;startSize=30;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="324" width="1040" height="190" as="geometry"/>
+                </mxCell>
+                <mxCell id="l2-meta" value="&lt;b&gt;Redis&lt;/b&gt;&#xa;TTL = 3 600 s  (1 h)&#xa;Fixed expiry (no refresh on hit)&#xa;&#xa;Keys:&#xa;  metadata:latest:{series_id}&#xa;  metadata:version:{series_id}:{ver}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;spacingLeft=10;verticalAlign=top;" parent="tier-l2" vertex="1">
+                    <mxGeometry x="60" y="40" width="300" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="l2-model" value="&lt;b&gt;Redis&lt;/b&gt;&#xa;TTL = 86 400 s  (24 h)&#xa;&lt;i&gt;Sliding expiry — TTL reset on every L2 hit&lt;/i&gt;&#xa;  redis.expire(key, 86 400) on read&#xa;&#xa;Key:  model:{run_id}&#xa;Value: {&quot;mean&quot;: float, &quot;std&quot;: float}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;spacingLeft=10;verticalAlign=top;" parent="tier-l2" vertex="1">
+                    <mxGeometry x="560" y="40" width="420" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="tier-source" value="Source of Truth  (persistent store)" style="swimlane;startSize=30;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="600" width="1040" height="176" as="geometry"/>
+                </mxCell>
+                <mxCell id="src-postgres" value="&lt;b&gt;PostgreSQL&lt;/b&gt;&lt;div&gt;&lt;b&gt;&lt;br&gt;&lt;/b&gt;model_metadata table&lt;br&gt;(series_id, version, run_id,&lt;br&gt; points_used, data_hash)&lt;/div&gt;" style="shape=mxgraph.flowchart.database;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=center;verticalAlign=top;spacingTop=4;" parent="tier-source" vertex="1">
+                    <mxGeometry x="110" y="52" width="200" height="114" as="geometry"/>
+                </mxCell>
+                <mxCell id="src-mlflow-minio" value="&lt;b&gt;MinIO (S3)  via  MLflow&lt;/b&gt;&lt;div&gt;&lt;b&gt;&lt;br&gt;&lt;/b&gt;model.pkl  +  training_data.json&lt;br&gt;Path: s3://{bucket}/{series_id}/&lt;br&gt;       {run_id}/model/model.pkl&lt;/div&gt;" style="shape=mxgraph.flowchart.database;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=center;verticalAlign=top;spacingTop=4;" parent="tier-source" vertex="1">
+                    <mxGeometry x="620" y="60" width="300" height="106" as="geometry"/>
+                </mxCell>
+                <mxCell id="tier-lock" value="Redis Training Lock" style="swimlane;startSize=30;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="814" width="1040" height="146" as="geometry"/>
+                </mxCell>
+                <mxCell id="lock-box" value="&lt;b&gt;RedisTrainingLock&lt;/b&gt;&#xa;Key:  training_lock:{series_id}    ·    SET NX EX 60 s&#xa;Polling interval: 50 ms    ·    blocking_timeout: 120 s&#xa;Released: DELETE key (only if token matches)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacingLeft=12;" parent="tier-lock" vertex="1">
+                    <mxGeometry x="335" y="46" width="370" height="74" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-l1meta-l2meta" value="L1 miss" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="l1-meta" target="l2-meta" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-l2meta-pg" value="L2 miss" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="l2-meta" target="src-postgres" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-l1model-l2model" value="L1 miss" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="l1-model" target="l2-model" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-l2model-minio" value="L2 miss" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="l2-model" target="src-mlflow-minio" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-pg-l2meta" value="populate" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;endArrow=open;endFill=0;exitX=0.3;exitY=0;exitDx=0;exitDy=0;entryX=0.3;entryY=1;entryDx=0;entryDy=0;fontColor=#b85450;" parent="1" source="src-postgres" target="l2-meta" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="210" y="652"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-l2meta-l1meta" value="populate" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;endArrow=open;endFill=0;exitX=0.3;exitY=0;exitDx=0;exitDy=0;entryX=0.3;entryY=1;entryDx=0;entryDy=0;fontColor=#9673a6;" parent="1" source="l2-meta" target="l1-meta" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-minio-l2model" value="populate" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;endArrow=open;endFill=0;exitX=0.3;exitY=0;exitDx=0;exitDy=0;entryX=0.3;entryY=1;entryDx=0;entryDy=0;fontColor=#b85450;" parent="1" source="src-mlflow-minio" target="l2-model" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="746" y="660"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-l2model-l1model" value="populate" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;endArrow=open;endFill=0;exitX=0.3;exitY=0;exitDx=0;exitDy=0;entryX=0.3;entryY=1;entryDx=0;entryDy=0;fontColor=#9673a6;" parent="1" source="l2-model" target="l1-model" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="summary-title" value="TTL Summary" style="text;strokeColor=none;fillColor=none;fontSize=11;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="1130" y="84" width="120" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="summary-box" value="&lt;table style=&#39;border-collapse:collapse;font-size:11px;&#39;&gt;&#xa;&lt;tr&gt;&lt;th align=&#39;left&#39; style=&#39;padding:4px 8px;border-bottom:1px solid #999;&#39;&gt;Layer&lt;/th&gt;&lt;th align=&#39;left&#39; style=&#39;padding:4px 8px;border-bottom:1px solid #999;&#39;&gt;What&lt;/th&gt;&lt;th align=&#39;left&#39; style=&#39;padding:4px 8px;border-bottom:1px solid #999;&#39;&gt;TTL&lt;/th&gt;&lt;/tr&gt;&#xa;&lt;tr&gt;&lt;td style=&#39;padding:4px 8px;&#39;&gt;L1&lt;/td&gt;&lt;td style=&#39;padding:4px 8px;&#39;&gt;Metadata (local)&lt;/td&gt;&lt;td style=&#39;padding:4px 8px;&#39;&gt;60 s&lt;/td&gt;&lt;/tr&gt;&#xa;&lt;tr&gt;&lt;td style=&#39;padding:4px 8px;&#39;&gt;L1&lt;/td&gt;&lt;td style=&#39;padding:4px 8px;&#39;&gt;Model (local)&lt;/td&gt;&lt;td style=&#39;padding:4px 8px;&#39;&gt;60 s&lt;/td&gt;&lt;/tr&gt;&#xa;&lt;tr&gt;&lt;td style=&#39;padding:4px 8px;&#39;&gt;L2&lt;/td&gt;&lt;td style=&#39;padding:4px 8px;&#39;&gt;Metadata (Redis)&lt;/td&gt;&lt;td style=&#39;padding:4px 8px;&#39;&gt;3 600 s (1 h)&lt;/td&gt;&lt;/tr&gt;&#xa;&lt;tr&gt;&lt;td style=&#39;padding:4px 8px;&#39;&gt;L2&lt;/td&gt;&lt;td style=&#39;padding:4px 8px;&#39;&gt;Model (Redis)&lt;/td&gt;&lt;td style=&#39;padding:4px 8px;&#39;&gt;86 400 s (24 h) ↺&lt;/td&gt;&lt;/tr&gt;&#xa;&lt;tr&gt;&lt;td style=&#39;padding:4px 8px;&#39;&gt;Lock&lt;/td&gt;&lt;td style=&#39;padding:4px 8px;&#39;&gt;Training lock&lt;/td&gt;&lt;td style=&#39;padding:4px 8px;&#39;&gt;60 s (NX)&lt;/td&gt;&lt;/tr&gt;&#xa;&lt;tr&gt;&lt;td colspan=&#39;2&#39; style=&#39;padding:4px 8px;font-style:italic;color:#888;&#39;&gt;L1 maxsize&lt;/td&gt;&lt;td style=&#39;padding:4px 8px;&#39;&gt;100&lt;/td&gt;&lt;/tr&gt;&#xa;&lt;/table&gt;" style="text;html=1;strokeColor=#cccccc;fillColor=#f5f5f5;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;" parent="1" vertex="1">
+                    <mxGeometry x="1130" y="104" width="270" height="210" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg-solid" value="Lookup (miss path)" style="text;strokeColor=none;fillColor=none;fontSize=10;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="1160" y="360" width="160" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg-solid-line" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;endFill=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1130" y="370" as="sourcePoint"/>
+                        <mxPoint x="1158" y="370" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="leg-dashed" value="Populate (write-back)" style="text;strokeColor=none;fillColor=none;fontSize=10;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="1160" y="390" width="160" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg-dashed-line" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;endArrow=open;endFill=0;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1130" y="400" as="sourcePoint"/>
+                        <mxPoint x="1158" y="400" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="leg-sliding" value="↺  Sliding TTL (reset on L2 hit)" style="text;strokeColor=none;fillColor=none;fontSize=10;align=left;fontStyle=2;" parent="1" vertex="1">
+                    <mxGeometry x="1130" y="420" width="240" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="note-startup" value="On API startup: all model metadata loaded&lt;br&gt;from PostgreSQL → L2 Redis + L1 TTLCache&lt;br&gt;(cache warming in lifespan event)" style="text;strokeColor=#6c8ebf;fillColor=#dae8fc;html=1;fontSize=10;align=left;spacingLeft=8;rounded=1;" parent="1" vertex="1">
+                    <mxGeometry x="1130" y="460" width="260" height="60" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

@@ -26,6 +26,7 @@ async def _noop_lifespan(app):
     """Bypass the real lifespan (DB cache-warming) for isolated route tests."""
     yield
 
+
 _VALID_BODY = {"timestamp": "1745000600", "value": 10.0}
 _EXPECTED_RESPONSE = {"anomaly": False, "model_version": "3"}
 

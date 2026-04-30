@@ -1,7 +1,7 @@
 """
 E2E test fixtures.
 
-The tests run against a live API stack (Postgres, MinIO, MLflow, API).
+The tests run against a live API stack (Postgres, MinIO, MLflow, Redis, API).
 Set API_BASE_URL to override the default (useful for local runs against
 docker compose).
 

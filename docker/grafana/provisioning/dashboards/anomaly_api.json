@@ -8,7 +8,11 @@
     "to": "now"
   },
   "timezone": "browser",
-  "tags": ["anomaly", "api", "performance"],
+  "tags": [
+    "anomaly",
+    "api",
+    "performance"
+  ],
   "panels": [
     {
       "type": "row",
@@ -20,7 +24,7 @@
         "w": 24,
         "h": 1
       },
-      "id": "\ud83d\udcca-overview",
+      "id": "📊-overview",
       "panels": []
     },
     {
@@ -59,7 +63,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"]
+          "calcs": [
+            "lastNotNull"
+          ]
         },
         "orientation": "auto",
         "textMode": "auto",
@@ -117,7 +123,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"]
+          "calcs": [
+            "lastNotNull"
+          ]
         },
         "orientation": "auto",
         "textMode": "auto",
@@ -171,7 +179,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"]
+          "calcs": [
+            "lastNotNull"
+          ]
         },
         "orientation": "auto",
         "textMode": "auto",
@@ -233,7 +243,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"]
+          "calcs": [
+            "lastNotNull"
+          ]
         },
         "orientation": "auto",
         "textMode": "auto",
@@ -295,7 +307,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"]
+          "calcs": [
+            "lastNotNull"
+          ]
         },
         "orientation": "auto",
         "textMode": "auto",
@@ -357,7 +371,9 @@
       },
       "options": {
         "reduceOptions": {
-          "calcs": ["lastNotNull"]
+          "calcs": [
+            "lastNotNull"
+          ]
         },
         "orientation": "auto",
         "textMode": "auto",
@@ -385,7 +401,7 @@
         "w": 24,
         "h": 1
       },
-      "id": "\ud83d\udda5\ufe0f-system-resources",
+      "id": "🖥️-system-resources",
       "panels": []
     },
     {
@@ -436,9 +452,14 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": ["mean", "max"]
+          "calcs": [
+            "mean",
+            "max"
+          ]
         },
-        "timezones": ["browser"]
+        "timezones": [
+          "browser"
+        ]
       },
       "targets": [
         {
@@ -499,9 +520,14 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": ["mean", "max"]
+          "calcs": [
+            "mean",
+            "max"
+          ]
         },
-        "timezones": ["browser"]
+        "timezones": [
+          "browser"
+        ]
       },
       "targets": [
         {
@@ -532,12 +558,12 @@
         "w": 24,
         "h": 1
       },
-      "id": "\u26a1-predict-performance",
+      "id": "⚡-predict-performance",
       "panels": []
     },
     {
       "type": "timeseries",
-      "title": "Predict Latency \u2014 p50 / p95 / p99",
+      "title": "Predict Latency — p50 / p95 / p99",
       "id": 8530,
       "gridPos": {
         "x": 0,
@@ -583,9 +609,14 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": ["mean", "max"]
+          "calcs": [
+            "mean",
+            "max"
+          ]
         },
-        "timezones": ["browser"]
+        "timezones": [
+          "browser"
+        ]
       },
       "targets": [
         {
@@ -616,7 +647,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Inference Latency \u2014 p50 / p95",
+      "title": "Inference Latency — p50 / p95",
       "id": 4057,
       "gridPos": {
         "x": 12,
@@ -662,9 +693,14 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": ["mean", "max"]
+          "calcs": [
+            "mean",
+            "max"
+          ]
         },
-        "timezones": ["browser"]
+        "timezones": [
+          "browser"
+        ]
       },
       "targets": [
         {
@@ -695,12 +731,12 @@
         "w": 24,
         "h": 1
       },
-      "id": "\ud83d\udd0d-predict-breakdown",
+      "id": "🔍-predict-breakdown",
       "panels": null
     },
     {
       "type": "timeseries",
-      "title": "Metadata Lookup \u2014 p50 / p95",
+      "title": "Metadata Lookup — p50 / p95",
       "id": 9136,
       "gridPos": {
         "x": 0,
@@ -746,9 +782,14 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": ["mean", "max"]
+          "calcs": [
+            "mean",
+            "max"
+          ]
         },
-        "timezones": ["browser"]
+        "timezones": [
+          "browser"
+        ]
       },
       "targets": [
         {
@@ -771,7 +812,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Model Load \u2014 p50 / p95",
+      "title": "Model Load — p50 / p95",
       "id": 4593,
       "gridPos": {
         "x": 8,
@@ -817,9 +858,14 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": ["mean", "max"]
+          "calcs": [
+            "mean",
+            "max"
+          ]
         },
-        "timezones": ["browser"]
+        "timezones": [
+          "browser"
+        ]
       },
       "targets": [
         {
@@ -842,7 +888,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Operation Latency \u2014 p50 / p95 / p99",
+      "title": "Operation Latency — p50 / p95 / p99",
       "id": 7001,
       "gridPos": {
         "x": 16,
@@ -888,9 +934,14 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": ["mean", "max"]
+          "calcs": [
+            "mean",
+            "max"
+          ]
         },
-        "timezones": ["browser"]
+        "timezones": [
+          "browser"
+        ]
       },
       "targets": [
         {
@@ -929,12 +980,12 @@
         "w": 24,
         "h": 1
       },
-      "id": "\ud83c\udf93-training-performance",
+      "id": "🎓-training-performance",
       "panels": null
     },
     {
       "type": "timeseries",
-      "title": "Training Latency \u2014 p50 / p95",
+      "title": "Training Latency — p50 / p95",
       "id": 8926,
       "gridPos": {
         "x": 0,
@@ -980,9 +1031,14 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": ["mean", "max"]
+          "calcs": [
+            "mean",
+            "max"
+          ]
         },
-        "timezones": ["browser"]
+        "timezones": [
+          "browser"
+        ]
       },
       "targets": [
         {
@@ -1051,9 +1107,14 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": ["mean", "max"]
+          "calcs": [
+            "mean",
+            "max"
+          ]
         },
-        "timezones": ["browser"]
+        "timezones": [
+          "browser"
+        ]
       },
       "targets": [
         {
@@ -1076,7 +1137,7 @@
         "w": 24,
         "h": 1
       },
-      "id": "\ud83d\udcc8-throughput",
+      "id": "📈-throughput",
       "panels": []
     },
     {
@@ -1127,9 +1188,14 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": ["mean", "max"]
+          "calcs": [
+            "mean",
+            "max"
+          ]
         },
-        "timezones": ["browser"]
+        "timezones": [
+          "browser"
+        ]
       },
       "targets": [
         {
@@ -1190,9 +1256,14 @@
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "calcs": ["mean", "max"]
+          "calcs": [
+            "mean",
+            "max"
+          ]
         },
-        "timezones": ["browser"]
+        "timezones": [
+          "browser"
+        ]
       },
       "targets": [
         {
@@ -1206,6 +1277,251 @@
         {
           "expr": "histogram_quantile(0.95, rate(http_request_duration_ms_bucket[1m]))",
           "legendFormat": "p95 {{path}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Cache & Redis",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 50,
+        "w": 24,
+        "h": 1
+      },
+      "id": "🔴-cache-redis",
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Redis Model Keys",
+      "id": 10001,
+      "gridPos": {
+        "x": 0,
+        "y": 51,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "expr": "redis_model_keys_total",
+          "legendFormat": "Model Keys",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Redis Metadata Keys",
+      "id": 10002,
+      "gridPos": {
+        "x": 6,
+        "y": 51,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "expr": "redis_metadata_keys_total",
+          "legendFormat": "Metadata Keys",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Redis Memory Used",
+      "id": 10003,
+      "gridPos": {
+        "x": 12,
+        "y": 51,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 52428800
+              },
+              {
+                "color": "red",
+                "value": 104857600
+              }
+            ]
+          },
+          "unit": "bytes",
+          "decimals": 0
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "expr": "redis_memory_used_bytes",
+          "legendFormat": "Memory",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "L1 Cache Items",
+      "id": 10004,
+      "gridPos": {
+        "x": 18,
+        "y": 51,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 100
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "expr": "l1_cache_items_total",
+          "legendFormat": "Items",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"

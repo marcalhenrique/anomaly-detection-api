@@ -1,6 +1,8 @@
 """
 Run inference stress test against the anomaly detection API.
 
+Uses requests + ThreadPoolExecutor for efficient concurrency inside Docker.
+
 Usage:
     python scripts/run_inference.py [OPTIONS]
 
@@ -25,14 +27,14 @@ SLA defaults (override via CLI flags):
 """
 
 import argparse
-import asyncio
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
-import httpx
 import numpy as np
+import requests
 
 # Approximate distribution per series — populated after training (or set fixed defaults)
 # series_id -> (mean, std) used to generate anomalous points outside 3σ
@@ -57,46 +59,44 @@ def _make_point(
     return int(ts), float(value)
 
 
-async def _predict(
-    client: httpx.AsyncClient,
+def _predict(
+    session: requests.Session,
     base_url: str,
     series_id: str,
     timestamp: int,
     value: float,
     version: str | None,
-    semaphore: asyncio.Semaphore,
 ) -> dict:
-    async with semaphore:
-        start = time.perf_counter()
-        try:
-            params = {"version": version} if version else {}
-            response = await client.post(
-                f"{base_url}/predict/{series_id}",
-                json={"timestamp": str(timestamp), "value": value},
-                params=params,
-                timeout=30.0,
-            )
-            elapsed_ms = (time.perf_counter() - start) * 1000
-            response.raise_for_status()
-            data = response.json()
-            return {
-                "series_id": series_id,
-                "latency_ms": elapsed_ms,
-                "anomaly": data.get("anomaly", False),
-                "model_version": data.get("model_version", "?"),
-                "status": "ok",
-                "error": None,
-            }
-        except Exception as exc:
-            elapsed_ms = (time.perf_counter() - start) * 1000
-            return {
-                "series_id": series_id,
-                "latency_ms": elapsed_ms,
-                "anomaly": False,
-                "model_version": "-",
-                "status": "error",
-                "error": str(exc),
-            }
+    start = time.perf_counter()
+    try:
+        params = {"version": version} if version else {}
+        response = session.post(
+            f"{base_url}/predict/{series_id}",
+            json={"timestamp": str(timestamp), "value": value},
+            params=params,
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        data = response.json()
+        return {
+            "series_id": series_id,
+            "latency_ms": elapsed_ms,
+            "anomaly": data.get("anomaly", False),
+            "model_version": data.get("model_version", "?"),
+            "status": "ok",
+            "error": None,
+        }
+    except Exception as exc:
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        return {
+            "series_id": series_id,
+            "latency_ms": elapsed_ms,
+            "anomaly": False,
+            "model_version": "-",
+            "status": "error",
+            "error": str(exc),
+        }
 
 
 def build_markdown(
@@ -160,7 +160,7 @@ def build_markdown(
     return "\n".join(lines) + "\n"
 
 
-async def main(args: argparse.Namespace) -> None:
+def main(args: argparse.Namespace) -> None:
     started_at = datetime.now(timezone.utc).isoformat()
     rng = np.random.default_rng(seed=args.seed)
 
@@ -191,17 +191,21 @@ async def main(args: argparse.Namespace) -> None:
     for i, is_anomaly in enumerate(anomaly_flags):
         series_id = series_ids[i % len(series_ids)]
         ts, value = _make_point(series_id, rng, is_anomaly, base_ts)
-        request_params.append((series_id, ts, value, is_anomaly))
+        request_params.append((series_id, ts, value))
 
-    semaphore = asyncio.Semaphore(args.concurrency)
+    results: list[dict] = []
     t0 = time.perf_counter()
 
-    async with httpx.AsyncClient() as client:
-        tasks = [
-            _predict(client, args.base_url, sid, ts, val, args.version, semaphore)
-            for sid, ts, val, _ in request_params
-        ]
-        results = await asyncio.gather(*tasks)
+    session = requests.Session()
+    with ThreadPoolExecutor(max_workers=args.concurrency) as executor:
+        futures = {
+            executor.submit(
+                _predict, session, args.base_url, sid, ts, val, args.version
+            ): (sid, ts, val)
+            for sid, ts, val in request_params
+        }
+        for future in as_completed(futures):
+            results.append(future.result())
 
     total_elapsed = time.perf_counter() - t0
 
@@ -349,4 +353,4 @@ def parse_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    asyncio.run(main(parse_args()))
+    main(parse_args())

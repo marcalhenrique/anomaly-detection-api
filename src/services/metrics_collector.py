@@ -6,6 +6,25 @@ import time
 import numpy as np
 from prometheus_client import Histogram, Gauge
 
+from src.core.redis_client import get_redis_client
+
+REDIS_MODEL_KEYS = Gauge(
+    "redis_model_keys_total",
+    "Number of model:* keys stored in Redis",
+)
+REDIS_METADATA_KEYS = Gauge(
+    "redis_metadata_keys_total",
+    "Number of metadata:* keys stored in Redis",
+)
+REDIS_MEMORY_USED = Gauge(
+    "redis_memory_used_bytes",
+    "Redis used memory in bytes (from INFO memory)",
+)
+L1_CACHE_ITEMS = Gauge(
+    "l1_cache_items_total",
+    "Number of items in the local L1 TTLCache (metadata + models)",
+)
+
 PREDICT_TOTAL = Histogram(
     "predict_latency_ms",
     "Latência total do predict (ms)",
@@ -47,13 +66,11 @@ SERIES_TRAINED = Gauge(
     "Number of distinct series with at least one trained model",
 )
 
-
 @contextmanager
 def timed(label: str, timings: dict[str, float]) -> Generator[None, None, None]:
     t = time.perf_counter()
     yield
     timings[label] = round((time.perf_counter() - t) * 1000, 3)
-
 
 class MetricsCollector:
     def __init__(self, latency_window: int = 1000) -> None:
@@ -92,3 +109,23 @@ class MetricsCollector:
 
     def get_series_trained(self) -> int:
         return int(SERIES_TRAINED._value.get() or 0)
+
+    def update_cache_metrics(
+        self,
+        metadata_cache: "MetadataCache",
+        mlflow_service: "MLflowService",
+    ) -> None:
+        redis = get_redis_client()
+
+        model_count = sum(1 for _ in redis.scan_iter(match="model:*"))
+        meta_count = sum(1 for _ in redis.scan_iter(match="metadata:*"))
+        REDIS_MODEL_KEYS.set(model_count)
+        REDIS_METADATA_KEYS.set(meta_count)
+
+        info = redis.info("memory")
+        REDIS_MEMORY_USED.set(info.get("used_memory", 0))
+
+        l1_meta = len(metadata_cache._local)
+        l1_model = len(mlflow_service._local)
+        L1_CACHE_ITEMS.set(l1_meta + l1_model)
+

@@ -19,7 +19,7 @@ dev:
 
 test-unit:
 	docker compose --profile test build test
-	docker compose --profile test run --rm --no-deps test pytest tests/ --ignore=tests/e2e -v
+	docker compose --profile test run --rm --no-deps test pytest tests/ --ignore=tests/e2e -v --cov=src --cov-report=term-missing
 
 test-e2e:
 	docker compose --profile test build test

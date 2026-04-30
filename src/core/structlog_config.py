@@ -5,21 +5,12 @@ from pathlib import Path
 
 import structlog
 
-
 def configure_logging(
     console_level: int | str = logging.DEBUG,
     file_level: int | str = logging.DEBUG,
     log_path: str = "log/app.log",
     json_console: bool = False,
 ) -> None:
-    """Configure structlog with console (colored) and file (JSON) handlers.
-
-    Args:
-        console_level: Log level for console output.
-        file_level: Log level for file output.
-        log_path: Path to the rotating log file.
-        json_console: If True, console output is also JSON (useful in production).
-    """
     shared_processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_logger_name,
@@ -86,20 +77,9 @@ def configure_logging(
     file_handler.setFormatter(file_formatter)
     root.addHandler(file_handler)
 
-
 def get_logger(name: str = __name__) -> structlog.stdlib.BoundLogger:
-    """Return a structlog bound logger.
-
-    Usage:
-        logger = get_logger(__name__)
-        logger.info("indexing started", collection="papers", chunks=42)
-
-    For request correlation, bind context vars in middleware:
-        structlog.contextvars.bind_contextvars(request_id="abc-123")
-    """
     return structlog.get_logger(name)
 
-
 def _ensure_log_dir(log_path: str) -> None:
-    """Create the log directory if it does not exist."""
     Path(log_path).parent.mkdir(parents=True, exist_ok=True)
+

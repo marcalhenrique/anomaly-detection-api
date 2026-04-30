@@ -14,23 +14,23 @@ The system exposes three core capabilities:
 
 Every trained model is versioned, serialized, and persisted. The API is fully asynchronous (FastAPI + Uvicorn) and designed to keep inference latency in the sub-millisecond range for cached models.
 
-![System Architecture](diagrams/system_architecture.drawio.png)
+![Layered Architecture](diagrams/layered-architecture.png)
 
 ---
 
 ## 2. Technology Stack
 
-| Layer | Technology | Rationale |
-|---|---|---|
-| API Framework | FastAPI + Uvicorn | Native `async`/`await`, automatic OpenAPI generation, strict Pydantic validation. |
-| ORM & Migrations | SQLAlchemy 2.0 (async) + Alembic | Type-safe async database access with Alembic for schema evolution. |
-| Metadata Store | PostgreSQL | Durable, indexed storage for model metadata (`series_id`, `version`, `mlflow_run_id`, `trained_at`). |
-| Artifact Store | MLflow + MinIO | MLflow provides model registry and versioning; MinIO acts as S3-compatible object storage for serialized artifacts. |
-| In-Memory Cache | `cachetools.LRUCache` | Zero-network, microsecond-scale model retrieval. Bounded memory via LRU eviction. |
-| Concurrency Control | `asyncio.Lock` per `series_id` | Serializes concurrent training requests for the same series to prevent race conditions and phantom versions. |
-| Metrics | Prometheus + Grafana | Histogram-based latency tracking with a pre-provisioned Grafana dashboard. |
-| Logging | `structlog` | Structured, rotation-aware JSON logs for observability in containerized environments. |
-| Packaging | `uv` | Fast, reproducible dependency resolution and lock files. |
+| Layer               | Technology                       | Rationale                                                                                                                           |
+| ------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| API Framework       | FastAPI + Uvicorn                | Native `async`/`await`, automatic OpenAPI generation, strict Pydantic validation.                                                   |
+| ORM & Migrations    | SQLAlchemy 2.0 (async) + Alembic | Type-safe async database access with Alembic for schema evolution.                                                                  |
+| Metadata Store      | PostgreSQL                       | Durable, indexed storage for model metadata (`series_id`, `version`, `mlflow_run_id`, `trained_at`).                                |
+| Artifact Store      | MLflow + MinIO                   | MLflow provides model registry and versioning; MinIO acts as S3-compatible object storage for serialized artifacts.                 |
+| Distributed Cache   | Redis                            | Shared model and metadata cache across all API workers. Eliminates cold starts and cache fragmentation in multi-worker deployments. |
+| Concurrency Control | Redis Distributed Lock           | Serializes concurrent training requests for the same series across all workers to prevent race conditions and phantom versions.     |
+| Metrics             | Prometheus + Grafana             | Histogram-based latency tracking with a pre-provisioned Grafana dashboard.                                                          |
+| Logging             | `structlog`                      | Structured, rotation-aware JSON logs for observability in containerized environments.                                               |
+| Packaging           | `uv`                             | Fast, reproducible dependency resolution and lock files.                                                                            |
 
 ---
 
@@ -49,7 +49,7 @@ The codebase follows a clean layered architecture. Dependencies always point inw
 │  Domain & Infrastructure Services       │
 │  AnomalyDetectionModel / MLflowService  │
 │  MetricsCollector / MetadataCache       │
-│  LocalTrainingLock                      │
+│  RedisTrainingLock                      │
 ├─────────────────────────────────────────┤
 │  Repository Layer (Data Access)         │
 │  ModelMetadataRepository                │
@@ -69,7 +69,7 @@ The codebase follows a clean layered architecture. Dependencies always point inw
 
 ## 4. Training Flow (`POST /fit/{series_id}`)
 
-![Training Flow](diagrams/fit-flow.drawio.png)
+![Training Flow](diagrams/fit-flow.png)
 
 1. **Preflight Validation** — `TrainRequest` enforces:
    - Minimum 10 data points
@@ -78,7 +78,7 @@ The codebase follows a clean layered architecture. Dependencies always point inw
 
 2. **Idempotency Check** — A SHA-256 hash of the input arrays is compared against the most recent training record for that `series_id`. If identical, the existing version is returned immediately — no redundant computation or storage write.
 
-3. **Concurrency Lock** — `LocalTrainingLock.acquire(series_id)` guarantees that two concurrent `/fit` requests for the same series are serialized. This prevents double-registration and version-skew in the MLflow registry.
+3. **Concurrency Lock** — `RedisTrainingLock.acquire(series_id)` guarantees that two concurrent `/fit` requests for the same series are serialized across all API workers. This prevents double-registration and version-skew in the MLflow registry.
 
 4. **Model Training** — `AnomalyDetectionModel.fit(TimeSeries)` computes `mean` and `std` via NumPy.
 
@@ -86,7 +86,7 @@ The codebase follows a clean layered architecture. Dependencies always point inw
 
 6. **Metadata Persistence** — A new row is inserted into PostgreSQL (`model_metadata` table) linking `series_id` ↔ `mlflow_run_id` ↔ `version`.
 
-7. **Cache Warming** — The newly trained model is eagerly loaded into the LRU cache so the first `/predict` hit is served from memory.
+7. **Cache Warming** — The newly trained model is eagerly loaded into the Redis cache so the first `/predict` hit is served from shared memory.
 
 > **Consistency note:** The artifact is written to MLflow **before** the Postgres transaction commits. If Postgres fails, the artifact becomes an orphan in MinIO. This is tolerated in the current scope; a production deployment would add a reconciliation / garbage-collection job.
 
@@ -94,11 +94,11 @@ The codebase follows a clean layered architecture. Dependencies always point inw
 
 ## 5. Prediction Flow (`POST /predict/{series_id}?version=`)
 
-![Prediction Flow](diagrams/predict_flow.png)
+![Prediction Flow](diagrams/predict-flow.png)
 
-1. **Metadata Lookup** — `MetadataCache` is consulted first. On miss, the latest (or version-pinned) record is fetched from PostgreSQL via `ModelMetadataRepository`. If no model exists, `404` is returned.
+1. **Metadata Lookup** — `MetadataCache` (backed by Redis) is consulted first. On miss, the latest (or version-pinned) record is fetched from PostgreSQL via `ModelMetadataRepository`, then cached in Redis. If no model exists, `404` is returned.
 
-2. **Model Loading** — `MLflowService.get_cached_model(run_id)` checks the in-process LRU cache. On miss, the artifact is downloaded from MinIO, deserialized with `pickle`, and inserted into the LRU.
+2. **Model Loading** — `MLflowService.get_cached_model(run_id)` checks the Redis cache. On miss, the artifact is downloaded from MinIO, deserialized with `pickle`, and inserted into Redis.
 
 3. **Inference** — `model.predict(DataPoint)` applies the Z-score threshold (`value > mean + 3·std`).
 
@@ -124,22 +124,30 @@ The current `AnomalyDetectionModel` stores only `mean` and `std`. It would be tr
 - **Standardization:** MLflow provides a unified API for versioning, staging (`None → Staging → Production`), and artifact tracking — industry standard for MLOps.
 - **Separation of concerns:** Postgres stores metadata (fast lookups); MinIO stores blobs (scalable, cheap). Each can be scaled independently.
 
-### 6.2 Two-level caching strategy (conceptual)
+### 6.2 Two-level caching strategy
 
-The production architecture is designed around a two-level cache:
+![Cache & TTL](diagrams/ttl-cache.png)
 
-- **L1 — In-process LRU (`cachetools`):** Microsecond access. Prevents OOM via bounded size. This is the only level implemented in the current scope.
-- **L2 — Distributed cache (Redis):** Reserved for future horizontal scaling. A shared L2 eliminates cold starts when new API instances spin up and provides cross-instance cache invalidation via Pub/Sub.
+The production architecture uses a two-tier cache to minimize latency while keeping workers consistent:
 
-The `MetadataCache` (for PostgreSQL metadata) and `MLflowService` LRU (for model artifacts) are already structured to allow a Redis-backed implementation without touching route code.
+- **L1 — In-process TTLCache (`cachetools`):** Each Uvicorn worker maintains its own local TTLCache (default: 100 items, 60 s TTL). This eliminates Redis round-trips for hot series and keeps inference latency in the sub-millisecond range when the model is already resident in worker memory.
+- **L2 — Distributed cache (Redis):** Shared across all API workers. Stores serialized models (`model:{run_id}`) and metadata (`metadata:latest:{series_id}`, `metadata:version:{series_id}:{version}`). Redis acts as the single source of truth and prevents cache fragmentation across workers.
+
+**Why two tiers?**
+- The pure-Redis approach (previous iteration) required a network round-trip on every predict, adding ~1–3 ms per request under load.
+- The pure in-process LRU caused cache misses when the load balancer routed a request to a worker that did not hold the model.
+- The L1+L2 hybrid gives the speed of local memory for hot series and the coherence of Redis for cold starts and worker scaling.
 
 ### 6.3 Concurrency control
 
-`LocalTrainingLock` uses `asyncio.Lock` per `series_id`. In a single-worker deployment this is sufficient. For multi-worker or Kubernetes deployments, the lock would be upgraded to a distributed implementation (e.g., Redlock with Redis) using the same `TrainingLockProtocol` interface — a one-line change in the dependency-injection container.
+`RedisTrainingLock` implements `TrainingLockProtocol` using Redis `SET NX EX` for atomic acquire and `GET` + `DEL` (with token verification) for safe release. This guarantees that concurrent `/fit` requests for the same `series_id` are serialized even when they land on different Uvicorn workers or different containers.
+
+The previous `LocalTrainingLock` (`asyncio.Lock`) was sufficient for single-worker deployments but failed under multi-worker loads, causing race conditions and phantom versions.
 
 ### 6.4 Idempotency via content hashing
 
 Retraining with identical data is a common operational mistake. By hashing the input arrays and short-circuiting when the hash matches the latest record, we:
+
 - Avoid wasting compute and storage
 - Prevent unnecessary version inflation
 - Guarantee that repeated requests are safe and fast
@@ -166,14 +174,18 @@ The endpoint returns system-level business metrics aligned with the OpenAPI cont
 
 ### 7.2 Prometheus Metrics
 
-| Metric | Type | Description |
-|---|---|---|
-| `predict_latency_ms` | Histogram | End-to-end prediction latency |
-| `train_latency_ms` | Histogram | End-to-end training latency |
-| `http_request_duration_ms` | Histogram | HTTP request latency by `(method, path, status_code)` |
-| `series_trained_total` | Gauge | Count of distinct `series_id` with at least one trained model |
+| Metric                     | Type      | Description                                                   |
+| -------------------------- | --------- | ------------------------------------------------------------- |
+| `predict_latency_ms`       | Histogram | End-to-end prediction latency                                 |
+| `train_latency_ms`         | Histogram | End-to-end training latency                                   |
+| `http_request_duration_ms` | Histogram | HTTP request latency by `(method, path, status_code)`         |
+| `series_trained_total`     | Gauge     | Count of distinct `series_id` with at least one trained model |
+| `redis_model_keys_total`   | Gauge     | Number of `model:*` keys in Redis                             |
+| `redis_metadata_keys_total`| Gauge     | Number of `metadata:*` keys in Redis                          |
+| `redis_memory_used_bytes`  | Gauge     | Redis memory usage (from `INFO memory`)                       |
+| `l1_cache_items_total`     | Gauge     | Items in the local per-worker L1 TTLCache                     |
 
-All metrics are scraped by Prometheus and visualized in a pre-provisioned Grafana dashboard (`docker/grafana/provisioning/dashboards/anomaly_api.json`).
+All metrics are scraped by Prometheus and visualized in a pre-provisioned Grafana dashboard (`docker/grafana/provisioning/dashboards/anomaly_api.json`). The dashboard includes a dedicated **Cache & Redis** section showing key counts, memory usage, and L1 occupancy per worker.
 
 ---
 
@@ -199,13 +211,13 @@ The `data_hash` column powers the idempotency check. `mlflow_run_id` is the fore
 
 ## 9. Scalability & Evolution Path
 
-| Current State | Next Evolution |
-|---|---|
-| Single-worker LRU cache | Redis L2 cache with Pub/Sub invalidation |
-| `asyncio.Lock` per series | Redlock (Redis) for multi-worker training safety |
-| Z-score (2 floats) | Plug-in architecture via `BaseAnomalyDetector` protocol to support Isolation Forest, LSTM autoencoders, or STL decomposition |
-| PostgreSQL direct queries | Read replicas or connection pooler (PgBouncer) for high-throughput metadata lookups |
-| REST pull-based inference | Async message-queue consumers (Kafka / Redis Streams) for continuous sensor ingestion |
+| Current State             | Next Evolution                                                                                                               |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Redis shared cache        | Redis Cluster for multi-node deployments                                                                                     |
+| Redis distributed lock    | Redlock with multiple Redis masters for geo-distributed safety                                                               |
+| Z-score (2 floats)        | Plug-in architecture via `BaseAnomalyDetector` protocol to support Isolation Forest, LSTM autoencoders, or STL decomposition |
+| PostgreSQL direct queries | Read replicas or connection pooler (PgBouncer) for high-throughput metadata lookups                                          |
+| REST pull-based inference | Async message-queue consumers (Kafka / Redis Streams) for continuous sensor ingestion                                        |
 
 The existing codebase is already shaped for these evolutions: protocols for locks and caches, MLflow as an agnostic registry, and clean separation between domain logic and infrastructure.
 
@@ -223,11 +235,21 @@ make test-unit
 # Run end-to-end tests (requires Docker stack)
 make test-e2e
 
-# Run benchmarks
+# Populate training data (100 series by default)
+make populate
+
+# Run inference stress test
+make inference
+
+# Run full API benchmark (training + cache hit + cache miss + retraining)
 make benchmark
+
+# Extreme stress test with oha (host-side, requires oha installed)
+./scripts/run_stress_test.sh
 ```
 
 Services:
+
 - API: http://localhost:8000
 - API Docs (Swagger UI): http://localhost:8000/docs
 - MLflow UI: http://localhost:5001

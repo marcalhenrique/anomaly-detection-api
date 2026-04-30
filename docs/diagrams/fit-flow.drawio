@@ -1,0 +1,175 @@
+<mxfile host="65bd71144e">
+    <diagram id="fit-flow" name="POST /fit Flow">
+        <mxGraphModel dx="1184" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="980" pageHeight="2320" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="POST /fit/{series_id} — Request Flow" style="text;strokeColor=none;fillColor=none;fontSize=18;fontStyle=1;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="190" y="10" width="600" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="start" value="Start" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="400" y="50" width="120" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="proc-endpoint" value="POST /fit/{series_id}&#xa;Validate TrainRequest body" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="150" width="220" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="proc-middleware" value="HTTPLatencyMiddleware&#xa;(start timer)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="255" width="220" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="proc-hash" value="Compute SHA-256&#xa;data_hash(timestamps + values)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="360" width="220" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="proc-lock" value="RedisTrainingLock.acquire(series_id)&#xa;SET NX EX 60s · poll every 50ms&#xa;blocking_timeout = 120s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="465" width="220" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="dec-lock" value="Lock acquired?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="330" y="585" width="260" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="err-timeout" value="HTTP 500&#xa;TimeoutError" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="740" y="593" width="150" height="64" as="geometry"/>
+                </mxCell>
+                <mxCell id="proc-get-latest" value="ModelMetadataRepository&#xa;.get_latest_by_series_id(series_id)&#xa;→ PostgreSQL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="720" width="220" height="65" as="geometry"/>
+                </mxCell>
+                <mxCell id="dec-duplicate" value="latest exists AND&#xa;data_hash matches?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="330" y="840" width="260" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="proc-return-dup" value="Release lock&#xa;Return existing TrainResponse&#xa;HTTP 200 (duplicate skipped)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="730" y="840" width="170" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="proc-timeseries" value="Build TimeSeries&#xa;[DataPoint(timestamp, value), …]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="980" width="220" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="proc-model-fit" value="AnomalyDetectionModel.fit(time_series)&#xa;Compute mean + std (3-sigma)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="1085" width="220" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="proc-save-model" value="MLflowService.save_model()&#xa;① Get/create MLflow experiment&#xa;② Create run, log mean/std/points&#xa;③ Save model.pkl + training_data.json&#xa;    → MinIO (S3)&#xa;④ Register model version&#xa;⑤ Cache model in Redis (L2) + TTL (L1)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="330" y="1190" width="260" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="dec-save-ok" value="save_model success?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="330" y="1375" width="260" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="err-mlflow" value="HTTP 500&#xa;mlflow_save_failed" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="740" y="1383" width="150" height="64" as="geometry"/>
+                </mxCell>
+                <mxCell id="proc-repo-save" value="ModelMetadataRepository.save()&#xa;(series_id, run_id, version,&#xa; points_used, data_hash)&#xa;→ PostgreSQL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="1510" width="220" height="75" as="geometry"/>
+                </mxCell>
+                <mxCell id="dec-repo-ok" value="repo.save() success?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="330" y="1640" width="260" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="err-metadata" value="HTTP 500&#xa;metadata_save_failed" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="740" y="1648" width="150" height="64" as="geometry"/>
+                </mxCell>
+                <mxCell id="proc-cache-set" value="MetadataCache.set(metadata)&#xa;→ Redis (L2) + TTLCache (L1)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="1775" width="220" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="proc-metrics" value="MetricsCollector&#xa;.record_training(elapsed_ms)&#xa;inc_series_trained() if new" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="1880" width="220" height="65" as="geometry"/>
+                </mxCell>
+                <mxCell id="proc-cache-warm" value="MLflowService.load_model(run_id)&#xa;[async thread — cache warm]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="1995" width="220" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="proc-release-lock" value="Release Redis Lock&#xa;(DELETE training_lock:{series_id})" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="2100" width="220" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="proc-return" value="Return TrainResponse&#xa;{series_id, version, points_used}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="2205" width="220" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="end" value="HTTP 200 OK" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="400" y="2310" width="120" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="start" target="proc-endpoint" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="proc-endpoint" target="proc-middleware" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="proc-middleware" target="proc-hash" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="proc-hash" target="proc-lock" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e5" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="proc-lock" target="dec-lock" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e6" value="Timeout (120s)" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="dec-lock" target="err-timeout" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e7" value="Acquired" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="dec-lock" target="proc-get-latest" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e8" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="proc-get-latest" target="dec-duplicate" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e9" value="Yes (same hash)" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="dec-duplicate" target="proc-return-dup" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e10" value="No (new/updated)" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="dec-duplicate" target="proc-timeseries" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e11" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="proc-timeseries" target="proc-model-fit" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e12" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="proc-model-fit" target="proc-save-model" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e13" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="proc-save-model" target="dec-save-ok" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e14" value="Error" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="dec-save-ok" target="err-mlflow" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e15" value="Success" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="dec-save-ok" target="proc-repo-save" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e16" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="proc-repo-save" target="dec-repo-ok" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e17" value="Error" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="dec-repo-ok" target="err-metadata" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e18" value="Success" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="dec-repo-ok" target="proc-cache-set" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e19" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="proc-cache-set" target="proc-metrics" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e20" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="proc-metrics" target="proc-cache-warm" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e21" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="proc-cache-warm" target="proc-release-lock" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e22" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="proc-release-lock" target="proc-return" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e23" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="proc-return" target="end" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend-title" value="Legend" style="text;strokeColor=none;fillColor=none;fontSize=11;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="780" y="100" width="80" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend-process" value="Process step" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="780" y="130" width="120" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend-service" value="Service / ML" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="780" y="170" width="120" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend-decision" value="Decision" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="780" y="210" width="120" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend-metrics" value="Metrics / Lock" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="780" y="270" width="120" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend-success" value="Success / End" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="780" y="310" width="120" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend-error" value="Error (HTTP 500)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="780" y="350" width="120" height="30" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

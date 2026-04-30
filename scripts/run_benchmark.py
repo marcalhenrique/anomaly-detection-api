@@ -5,8 +5,8 @@ Four scenarios are run sequentially and the results are combined into a
 single Markdown report:
 
   A – Concurrent Training     fires N parallel /fit requests for N distinct series
-  B – Inference · Cache Hit   infers on models known to be in LRU cache
-  C – Inference · Cache Miss  infers on models that were evicted from LRU
+  B – Inference · Cache Hit   infers on models known to be in Redis cache
+  C – Inference · Cache Miss  infers on models that were evicted from Redis
                               (each request forces an MLflow/MinIO load)
   D – Concurrent Retraining   fires N parallel /fit requests for the SAME series_id
                               with different data each time; tests the per-series
@@ -21,7 +21,7 @@ measured but not gated.
 
 Defaults:
     --cache-size           50
-    --evict-extra          10   (models trained beyond cache to force evictions)
+    --evict-extra          10   (extra models trained to force Redis cache evictions)
     --train-n-models       20
     --train-concurrency    10
     --infer-n-requests     500  (per scenario)
@@ -35,13 +35,17 @@ Defaults:
 
 import argparse
 import asyncio
+import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
-import httpx
+import asyncpg
 import numpy as np
+import redis
+import requests
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -69,88 +73,93 @@ def _make_training_data_for_version(version_index: int) -> dict:
     return {"timestamps": timestamps, "values": values}
 
 
-async def _fit(
-    client: httpx.AsyncClient,
+def _fit(
+    session: requests.Session,
     base_url: str,
     series_id: str,
-    semaphore: asyncio.Semaphore,
     rng: np.random.Generator,
 ) -> dict:
     body = _make_training_data(rng)
-    async with semaphore:
-        start = time.perf_counter()
-        try:
-            r = await client.post(
-                f"{base_url}/fit/{series_id}",
-                json=body,
-                timeout=120.0,
-            )
-            elapsed_ms = (time.perf_counter() - start) * 1000
-            r.raise_for_status()
-            return {"latency_ms": elapsed_ms, "status": "ok", "error": None}
-        except Exception as exc:
-            elapsed_ms = (time.perf_counter() - start) * 1000
-            return {"latency_ms": elapsed_ms, "status": "error", "error": str(exc)}
+    start = time.perf_counter()
+    try:
+        r = session.post(
+            f"{base_url}/fit/{series_id}",
+            json=body,
+            timeout=120.0,
+        )
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        r.raise_for_status()
+        data = r.json()
+        return {
+            "latency_ms": elapsed_ms,
+            "status": "ok",
+            "error": None,
+            "version": data.get("version"),
+        }
+    except Exception as exc:
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        return {
+            "latency_ms": elapsed_ms,
+            "status": "error",
+            "error": str(exc),
+            "version": None,
+        }
 
 
-async def _fit_with_body(
-    client: httpx.AsyncClient,
+def _fit_with_body(
+    session: requests.Session,
     base_url: str,
     series_id: str,
     body: dict,
-    semaphore: asyncio.Semaphore,
 ) -> dict:
     """Send a /fit request with a pre-built body (used for Scenario D)."""
-    async with semaphore:
-        start = time.perf_counter()
-        try:
-            r = await client.post(
-                f"{base_url}/fit/{series_id}",
-                json=body,
-                timeout=120.0,
-            )
-            elapsed_ms = (time.perf_counter() - start) * 1000
-            r.raise_for_status()
-            data = r.json()
-            return {
-                "latency_ms": elapsed_ms,
-                "status": "ok",
-                "error": None,
-                "version": data.get("version"),
-            }
-        except Exception as exc:
-            elapsed_ms = (time.perf_counter() - start) * 1000
-            return {
-                "latency_ms": elapsed_ms,
-                "status": "error",
-                "error": str(exc),
-                "version": None,
-            }
+    start = time.perf_counter()
+    try:
+        r = session.post(
+            f"{base_url}/fit/{series_id}",
+            json=body,
+            timeout=120.0,
+        )
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        r.raise_for_status()
+        data = r.json()
+        return {
+            "latency_ms": elapsed_ms,
+            "status": "ok",
+            "error": None,
+            "version": data.get("version"),
+        }
+    except Exception as exc:
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        return {
+            "latency_ms": elapsed_ms,
+            "status": "error",
+            "error": str(exc),
+            "version": None,
+        }
 
 
-async def _predict(
-    client: httpx.AsyncClient,
+def _predict(
+    session: requests.Session,
     base_url: str,
     series_id: str,
-    semaphore: asyncio.Semaphore,
     rng: np.random.Generator,
 ) -> dict:
     ts = 1_750_000_000 + int(rng.integers(0, 1_000_000))
     value = float(rng.normal(100.0, 5.0))
-    async with semaphore:
-        start = time.perf_counter()
-        try:
-            r = await client.post(
-                f"{base_url}/predict/{series_id}",
-                json={"timestamp": str(ts), "value": value},
-                timeout=30.0,
-            )
-            elapsed_ms = (time.perf_counter() - start) * 1000
-            r.raise_for_status()
-            return {"latency_ms": elapsed_ms, "status": "ok", "error": None}
-        except Exception as exc:
-            elapsed_ms = (time.perf_counter() - start) * 1000
-            return {"latency_ms": elapsed_ms, "status": "error", "error": str(exc)}
+    start = time.perf_counter()
+    try:
+        r = session.post(
+            f"{base_url}/predict/{series_id}",
+            json={"timestamp": str(ts), "value": value},
+            timeout=30.0,
+        )
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        r.raise_for_status()
+        return {"latency_ms": elapsed_ms, "status": "ok", "error": None}
+    except Exception as exc:
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        return {"latency_ms": elapsed_ms, "status": "error", "error": str(exc)}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -158,25 +167,28 @@ async def _predict(
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-async def run_scenario_a(
-    client: httpx.AsyncClient,
+def run_scenario_a(
+    session: requests.Session,
     base_url: str,
     n_models: int,
     concurrency: int,
     rng: np.random.Generator,
 ) -> tuple[list[dict], float]:
     """Train N models concurrently; return (results, elapsed_s)."""
-    semaphore = asyncio.Semaphore(concurrency)
     series_ids = [f"bench-a-{i:04d}" for i in range(n_models)]
     t0 = time.perf_counter()
-    results = await asyncio.gather(
-        *[_fit(client, base_url, sid, semaphore, rng) for sid in series_ids]
-    )
-    return list(results), time.perf_counter() - t0
+    results: list[dict] = []
+    with ThreadPoolExecutor(max_workers=concurrency) as ex:
+        futures = {
+            ex.submit(_fit, session, base_url, sid, rng): sid for sid in series_ids
+        }
+        for future in as_completed(futures):
+            results.append(future.result())
+    return results, time.perf_counter() - t0
 
 
-async def run_scenario_d(
-    client: httpx.AsyncClient,
+def run_scenario_d(
+    session: requests.Session,
     base_url: str,
     series_id: str,
     n_versions: int,
@@ -190,84 +202,158 @@ async def run_scenario_d(
     n_versions should succeed and the version counter should reach n_versions
     (or n_versions + any pre-existing versions for this series).
     """
-    semaphore = asyncio.Semaphore(concurrency)
     bodies = [_make_training_data_for_version(i) for i in range(n_versions)]
     t0 = time.perf_counter()
-    results = await asyncio.gather(
-        *[
-            _fit_with_body(client, base_url, series_id, body, semaphore)
+    results: list[dict] = []
+    with ThreadPoolExecutor(max_workers=concurrency) as ex:
+        futures = {
+            ex.submit(_fit_with_body, session, base_url, series_id, body): body
             for body in bodies
-        ]
-    )
+        }
+        for future in as_completed(futures):
+            results.append(future.result())
     elapsed = time.perf_counter() - t0
     ok_results = [r for r in results if r["status"] == "ok"]
     versions = [int(r["version"]) for r in ok_results if r["version"] is not None]
     final_version = max(versions) if versions else 0
-    return list(results), elapsed, final_version
+    return results, elapsed, final_version
 
 
-async def _setup_cache(
-    client: httpx.AsyncClient,
+def _setup_cache(
+    session: requests.Session,
     base_url: str,
     cache_size: int,
     evict_extra: int,
     rng: np.random.Generator,
-) -> tuple[list[str], list[str]]:
+) -> tuple[list[str], list[str], dict[str, str]]:
     """Train cache_size + evict_extra models sequentially to get a
-    deterministic LRU state.
+    deterministic Redis cache state.
 
-    Returns (hit_series, miss_series):
-      - hit_series  → last cache_size trained, still in LRU
-      - miss_series → first evict_extra trained, evicted from LRU
+    Returns (hit_series, miss_series, versions):
+      - hit_series  → last cache_size trained, still in Redis cache
+      - miss_series → first evict_extra trained, evicted from Redis cache
+      - versions    → mapping series_id -> version returned by /fit
     """
     total = cache_size + evict_extra
     series_ids = [f"bench-cache-{i:04d}" for i in range(total)]
     print(f"    training {total} models sequentially for cache setup …", flush=True)
+    versions: dict[str, str] = {}
     for sid in series_ids:
-        await _fit(client, base_url, sid, asyncio.Semaphore(1), rng)
-    return series_ids[evict_extra:], series_ids[:evict_extra]
+        result = _fit(session, base_url, sid, rng)
+        if result["status"] == "ok" and result.get("version"):
+            versions[sid] = result["version"]
+    return series_ids[evict_extra:], series_ids[:evict_extra], versions
 
 
-async def run_scenario_b(
-    client: httpx.AsyncClient,
+def run_scenario_b(
+    session: requests.Session,
     base_url: str,
     hit_series: list[str],
     n_requests: int,
     concurrency: int,
     rng: np.random.Generator,
 ) -> tuple[list[dict], float]:
-    """Infer against models that are in LRU cache."""
-    semaphore = asyncio.Semaphore(concurrency)
+    """Infer against models that are in Redis cache."""
     t0 = time.perf_counter()
-    results = await asyncio.gather(
-        *[
-            _predict(client, base_url, hit_series[i % len(hit_series)], semaphore, rng)
+    results: list[dict] = []
+    with ThreadPoolExecutor(max_workers=concurrency) as ex:
+        futures = {
+            ex.submit(
+                _predict, session, base_url, hit_series[i % len(hit_series)], rng
+            ): i
             for i in range(n_requests)
-        ]
-    )
-    return list(results), time.perf_counter() - t0
+        }
+        for future in as_completed(futures):
+            results.append(future.result())
+    return results, time.perf_counter() - t0
 
 
-async def run_scenario_c(
-    client: httpx.AsyncClient,
+def run_scenario_c(
+    session: requests.Session,
     base_url: str,
     miss_series: list[str],
     n_requests: int,
     concurrency: int,
     rng: np.random.Generator,
 ) -> tuple[list[dict], float]:
-    """Infer against models that were evicted from LRU cache."""
-    semaphore = asyncio.Semaphore(concurrency)
+    """Infer against models that were evicted from Redis cache."""
     t0 = time.perf_counter()
-    results = await asyncio.gather(
-        *[
-            _predict(
-                client, base_url, miss_series[i % len(miss_series)], semaphore, rng
-            )
+    results: list[dict] = []
+    with ThreadPoolExecutor(max_workers=concurrency) as ex:
+        futures = {
+            ex.submit(
+                _predict, session, base_url, miss_series[i % len(miss_series)], rng
+            ): i
             for i in range(n_requests)
-        ]
+        }
+        for future in as_completed(futures):
+            results.append(future.result())
+    return results, time.perf_counter() - t0
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Cache eviction helpers (force true MLflow/MinIO cold-start)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+async def _fetch_run_ids_async(
+    miss_series: list[str],
+    versions: dict[str, str],
+) -> dict[str, str]:
+    """Query Postgres to map series_id -> mlflow_run_id."""
+    dsn = (
+        f"postgresql://{os.getenv('POSTGRES_USER', 'postgres')}:"
+        f"{os.getenv('POSTGRES_PASSWORD', 'postgres')}@"
+        f"{os.getenv('POSTGRES_HOST', 'localhost')}:"
+        f"{os.getenv('POSTGRES_PORT', '5432')}/"
+        f"{os.getenv('POSTGRES_DB', 'anomaly_detection_db')}"
     )
-    return list(results), time.perf_counter() - t0
+    conn = await asyncpg.connect(dsn)
+    try:
+        mapping: dict[str, str] = {}
+        for sid in miss_series:
+            version = versions.get(sid)
+            if not version:
+                continue
+            row = await conn.fetchrow(
+                "SELECT mlflow_run_id FROM model_metadata "
+                "WHERE series_id = $1 AND version = $2",
+                sid,
+                version,
+            )
+            if row:
+                mapping[sid] = row["mlflow_run_id"]
+        return mapping
+    finally:
+        await conn.close()
+
+
+def _fetch_run_ids(
+    miss_series: list[str],
+    versions: dict[str, str],
+) -> dict[str, str]:
+    return asyncio.run(_fetch_run_ids_async(miss_series, versions))
+
+
+def _evict_from_redis(run_ids: list[str], miss_series: list[str], versions: dict[str, str]) -> None:
+    """Delete model and metadata keys from Redis so the next predict goes to MLflow/MinIO."""
+    r = redis.Redis(
+        host=os.getenv("REDIS_HOST", "localhost"),
+        port=int(os.getenv("REDIS_PORT", "6379")),
+        db=int(os.getenv("REDIS_DB", "0")),
+        decode_responses=True,
+    )
+    pipe = r.pipeline()
+    for run_id in run_ids:
+        pipe.delete(f"model:{run_id}")
+    for sid in miss_series:
+        pipe.delete(f"metadata:latest:{sid}")
+        version = versions.get(sid)
+        if version:
+            pipe.delete(f"metadata:version:{sid}:{version}")
+    results = pipe.execute()
+    deleted = sum(1 for x in results if x)
+    print(f"    evicted {deleted} Redis keys for {len(miss_series)} series", flush=True)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -306,6 +392,42 @@ def _comparison_row(label: str, results: list[dict], elapsed_s: float) -> str:
     )
 
 
+def _sla_status(
+    results: list[dict],
+    elapsed: float,
+    sla_min_throughput: float,
+    sla_max_p99_ms: float,
+    sla_max_error_rate: float,
+) -> tuple[bool, list[str]]:
+    ok = [r for r in results if r["status"] == "ok"]
+    lats = np.array([r["latency_ms"] for r in ok]) if ok else np.array([float("inf")])
+    thr = len(ok) / elapsed if elapsed else 0.0
+    p99 = float(np.percentile(lats, 99))
+    err_rate = 1 - len(ok) / len(results) if results else 1.0
+
+    checks: list[str] = []
+    passed = True
+    if thr < sla_min_throughput:
+        checks.append(f"❌ Throughput {thr:.1f} req/s < {sla_min_throughput} req/s")
+        passed = False
+    else:
+        checks.append(f"✅ Throughput {thr:.1f} req/s ≥ {sla_min_throughput} req/s")
+
+    if p99 > sla_max_p99_ms:
+        checks.append(f"❌ p99 latency {p99:.1f} ms > {sla_max_p99_ms} ms")
+        passed = False
+    else:
+        checks.append(f"✅ p99 latency {p99:.1f} ms ≤ {sla_max_p99_ms} ms")
+
+    if err_rate > sla_max_error_rate:
+        checks.append(f"❌ Error rate {err_rate:.2%} > {sla_max_error_rate:.2%}")
+        passed = False
+    else:
+        checks.append(f"✅ Error rate {err_rate:.2%} ≤ {sla_max_error_rate:.2%}")
+
+    return passed, checks
+
+
 def build_markdown(
     *,
     base_url: str,
@@ -330,14 +452,56 @@ def build_markdown(
     d_concurrency: int,
     d_series_id: str,
     d_final_version: int,
+    sla_min_throughput: float = 200.0,
+    sla_max_p99_ms: float = 500.0,
+    sla_max_error_rate: float = 0.01,
 ) -> str:
+    # SLA checks for B and C
+    b_passed, b_checks = _sla_status(
+        b_results, b_elapsed, sla_min_throughput, sla_max_p99_ms, sla_max_error_rate
+    )
+    c_passed, c_checks = _sla_status(
+        c_results, c_elapsed, sla_min_throughput, sla_max_p99_ms, sla_max_error_rate
+    )
+    overall_passed = b_passed and c_passed
+
     lines = [
         "# API Benchmark Report",
         "",
-        f"**Generated at:** {started_at}  ",
-        f"**Base URL:** {base_url}  ",
-        f"**LRU cache size:** {cache_size}  ",
-        f"**Models evicted for cache-miss scenario:** {evict_extra}  ",
+        "## Configuration",
+        "",
+        f"| Parameter | Value |",
+        f"|-----------|-------|",
+        f"| **Generated at** | {started_at} |",
+        f"| **Base URL** | {base_url} |",
+        f"| **Redis cache size** | {cache_size} |",
+        f"| **Models evicted (cold-start)** | {evict_extra} |",
+        f"| **SLA min throughput** | {sla_min_throughput} req/s |",
+        f"| **SLA max p99 latency** | {sla_max_p99_ms} ms |",
+        f"| **SLA max error rate** | {sla_max_error_rate:.0%} |",
+        "",
+        "## Overview",
+        "",
+        "This benchmark exercises the anomaly-detection API across four scenarios:",
+        "",
+        "| # | Scenario | What it measures |",
+        "|---|----------|------------------|",
+        "| A | **Concurrent Training** | Throughput of parallel `/fit` requests for *distinct* series. |",
+        "| B | **Inference · Cache Hit** | Prediction latency when model + metadata are **present in Redis**. |",
+        "| C | **Inference · Cache Miss** | Prediction latency when model + metadata were **purged from Redis** (cold-start: forces MLflow/MinIO download + Postgres lookup). |",
+        "| D | **Concurrent Retraining** | Correctness of the per-series lock and version counter when multiple `/fit` requests target the *same* series simultaneously. |",
+        "",
+        "## SLA Summary",
+        "",
+        f"**Overall:** {'✅ PASSED' if overall_passed else '❌ FAILED'}",
+        "",
+        "### Scenario B — Inference · Cache Hit",
+        "",
+        *([f"- {c}" for c in b_checks]),
+        "",
+        "### Scenario C — Inference · Cache Miss",
+        "",
+        *([f"- {c}" for c in c_checks]),
         "",
         "---",
         "",
@@ -353,9 +517,9 @@ def build_markdown(
         "",
         "## Scenario B — Inference · Cache Hit",
         "",
-        f"> **{b_n_requests} predictions** against models that are **in LRU cache**,",
+        f"> **{b_n_requests} predictions** against models that are **in Redis cache**,",
         f"> concurrency **{b_concurrency}**.  ",
-        "> No MLflow/MinIO load is required — prediction runs entirely from memory.",
+        "> Redis model + metadata keys are present — no MLflow/MinIO download required.",
         "",
         "| Metric | Value |",
         "|--------|-------|",
@@ -363,11 +527,12 @@ def build_markdown(
         "",
         "---",
         "",
-        "## Scenario C — Inference · Cache Miss",
+        "## Scenario C — Inference · Cache Miss (Cold Start)",
         "",
-        f"> **{c_n_requests} predictions** against models **evicted from LRU cache**,",
+        f"> **{c_n_requests} predictions** against models **evicted from Redis cache**,",
         f"> concurrency **{c_concurrency}**.  ",
-        "> Each request must load the model from MLflow/MinIO before predicting.",
+        "> Redis keys (model + metadata) were deleted before the benchmark.  ",
+        "> Each request forces MLflow/MinIO artifact download + Postgres metadata lookup.",
         "",
         "| Metric | Value |",
         "|--------|-------|",
@@ -397,6 +562,18 @@ def build_markdown(
         _comparison_row("C · Inference Cache Miss", c_results, c_elapsed),
         _comparison_row("D · Concurrent Retraining", d_results, d_elapsed),
         "",
+        "---",
+        "",
+        "## Notes",
+        "",
+        "- **Cache architecture:** The API uses Redis as a *single-source-of-truth* distributed cache.  ",
+        "  Model artifacts (`model:{run_id}`) and metadata (`metadata:latest:{series_id}`, `metadata:version:{series_id}:{version}`)  ",
+        "  are stored with TTL and shared across all API workers, eliminating the cache-coherency issues of the previous in-process LRU.",
+        "- **Scenario C evictions:** Keys are manually deleted from Redis before the benchmark to simulate a genuine cold-start  ",
+        "  (MLflow/MinIO artifact download + Postgres metadata query).",
+        "- **Scenario D expectations:** The per-series lock serialises concurrent `/fit` calls, so the final version should equal  ",
+        "  the number of successful requests (or total if all succeed).",
+        "",
     ]
     return "\n".join(lines) + "\n"
 
@@ -406,7 +583,7 @@ def build_markdown(
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-async def main(args: argparse.Namespace) -> None:
+def main(args: argparse.Namespace) -> None:
     started_at = datetime.now(timezone.utc).isoformat()
     rng = np.random.default_rng(seed=args.seed)
 
@@ -414,7 +591,7 @@ async def main(args: argparse.Namespace) -> None:
     print("  API Benchmark")
     print("=" * 60)
     print(f"  Base URL:          {args.base_url}")
-    print(f"  LRU cache size:    {args.cache_size}")
+    print(f"  Redis cache size:  {args.cache_size}")
     print(f"  Evict extra:       {args.evict_extra}")
     print(
         f"  Train models (A):  {args.train_n_models} @ concurrency {args.train_concurrency}"
@@ -428,99 +605,106 @@ async def main(args: argparse.Namespace) -> None:
     print("=" * 60)
     print()
 
-    async with httpx.AsyncClient() as client:
-        # ── Scenario A: Concurrent Training ────────────────────────────────
-        print("[A] Concurrent Training …", flush=True)
-        a_results, a_elapsed = await run_scenario_a(
-            client,
-            args.base_url,
-            n_models=args.train_n_models,
-            concurrency=args.train_concurrency,
-            rng=rng,
-        )
-        a_ok = [r for r in a_results if r["status"] == "ok"]
-        a_lats = np.array([r["latency_ms"] for r in a_ok]) if a_ok else np.array([0.0])
-        print(
-            f"    {len(a_ok)}/{len(a_results)} ok  |  "
-            f"{len(a_ok) / a_elapsed:.1f} train/s  |  "
-            f"p99 {float(np.percentile(a_lats, 99)):.0f} ms"
-        )
-        print()
+    session = requests.Session()
 
-        # ── Setup cache for B + C ───────────────────────────────────────────
-        print("[setup] Preparing cache state for scenarios B and C …", flush=True)
-        hit_series, miss_series = await _setup_cache(
-            client,
-            args.base_url,
-            cache_size=args.cache_size,
-            evict_extra=args.evict_extra,
-            rng=rng,
-        )
-        print(
-            f"    in-cache: {len(hit_series)} series | evicted: {len(miss_series)} series"
-        )
-        print()
+    # ── Scenario A: Concurrent Training ────────────────────────────────
+    print("[A] Concurrent Training …", flush=True)
+    a_results, a_elapsed = run_scenario_a(
+        session,
+        args.base_url,
+        n_models=args.train_n_models,
+        concurrency=args.train_concurrency,
+        rng=rng,
+    )
+    a_ok = [r for r in a_results if r["status"] == "ok"]
+    a_lats = np.array([r["latency_ms"] for r in a_ok]) if a_ok else np.array([0.0])
+    print(
+        f"    {len(a_ok)}/{len(a_results)} ok  |  "
+        f"{len(a_ok) / a_elapsed:.1f} train/s  |  "
+        f"p99 {float(np.percentile(a_lats, 99)):.0f} ms"
+    )
+    print()
 
-        # ── Scenario B: Inference Cache Hit ────────────────────────────────
-        print("[B] Inference Cache Hit …", flush=True)
-        b_results, b_elapsed = await run_scenario_b(
-            client,
-            args.base_url,
-            hit_series=hit_series,
-            n_requests=args.infer_n_requests,
-            concurrency=args.infer_concurrency,
-            rng=rng,
-        )
-        b_ok = [r for r in b_results if r["status"] == "ok"]
-        b_lats = np.array([r["latency_ms"] for r in b_ok]) if b_ok else np.array([0.0])
-        print(
-            f"    {len(b_ok)}/{len(b_results)} ok  |  "
-            f"{len(b_ok) / b_elapsed:.1f} req/s  |  "
-            f"p99 {float(np.percentile(b_lats, 99)):.0f} ms"
-        )
-        print()
+    # ── Setup cache for B + C ───────────────────────────────────────────
+    print("[setup] Preparing cache state for scenarios B and C …", flush=True)
+    hit_series, miss_series, versions = _setup_cache(
+        session,
+        args.base_url,
+        cache_size=args.cache_size,
+        evict_extra=args.evict_extra,
+        rng=rng,
+    )
+    print(
+        f"    in-cache: {len(hit_series)} series | evicted: {len(miss_series)} series"
+    )
+    print()
 
-        # ── Scenario C: Inference Cache Miss ───────────────────────────────
-        print("[C] Inference Cache Miss …", flush=True)
-        c_results, c_elapsed = await run_scenario_c(
-            client,
-            args.base_url,
-            miss_series=miss_series,
-            n_requests=args.infer_n_requests,
-            concurrency=args.infer_concurrency,
-            rng=rng,
-        )
-        c_ok = [r for r in c_results if r["status"] == "ok"]
-        c_lats = np.array([r["latency_ms"] for r in c_ok]) if c_ok else np.array([0.0])
-        print(
-            f"    {len(c_ok)}/{len(c_results)} ok  |  "
-            f"{len(c_ok) / c_elapsed:.1f} req/s  |  "
-            f"p99 {float(np.percentile(c_lats, 99)):.0f} ms"
-        )
-        print()
+    # ── Scenario B: Inference Cache Hit ────────────────────────────────
+    print("[B] Inference Cache Hit …", flush=True)
+    b_results, b_elapsed = run_scenario_b(
+        session,
+        args.base_url,
+        hit_series=hit_series,
+        n_requests=args.infer_n_requests,
+        concurrency=args.infer_concurrency,
+        rng=rng,
+    )
+    b_ok = [r for r in b_results if r["status"] == "ok"]
+    b_lats = np.array([r["latency_ms"] for r in b_ok]) if b_ok else np.array([0.0])
+    print(
+        f"    {len(b_ok)}/{len(b_results)} ok  |  "
+        f"{len(b_ok) / b_elapsed:.1f} req/s  |  "
+        f"p99 {float(np.percentile(b_lats, 99)):.0f} ms"
+    )
+    print()
 
-        # ── Scenario D: Concurrent Retraining ──────────────────────────────
-        d_series_id = "bench-d-retrain"
-        print(
-            f"[D] Concurrent Retraining ({args.retrain_n_versions}x '{d_series_id}') …",
-            flush=True,
-        )
-        d_results, d_elapsed, d_final_version = await run_scenario_d(
-            client,
-            args.base_url,
-            series_id=d_series_id,
-            n_versions=args.retrain_n_versions,
-            concurrency=args.retrain_concurrency,
-        )
-        d_ok = [r for r in d_results if r["status"] == "ok"]
-        d_lats = np.array([r["latency_ms"] for r in d_ok]) if d_ok else np.array([0.0])
-        print(
-            f"    {len(d_ok)}/{len(d_results)} ok  |  "
-            f"{len(d_ok) / d_elapsed:.1f} train/s  |  "
-            f"p99 {float(np.percentile(d_lats, 99)):.0f} ms  |  "
-            f"final version: {d_final_version}"
-        )
-        print()
+    # ── Evict Redis cache for true cold-start ──────────────────────────
+    print("[setup] Evicting Redis cache for miss series …", flush=True)
+    run_id_map = _fetch_run_ids(miss_series, versions)
+    _evict_from_redis(list(run_id_map.values()), miss_series, versions)
+    print()
+
+    # ── Scenario C: Inference Cache Miss (cold start / MLflow load) ────
+    print("[C] Inference Cache Miss (cold start) …", flush=True)
+    c_results, c_elapsed = run_scenario_c(
+        session,
+        args.base_url,
+        miss_series=miss_series,
+        n_requests=args.infer_n_requests,
+        concurrency=args.infer_concurrency,
+        rng=rng,
+    )
+    c_ok = [r for r in c_results if r["status"] == "ok"]
+    c_lats = np.array([r["latency_ms"] for r in c_ok]) if c_ok else np.array([0.0])
+    print(
+        f"    {len(c_ok)}/{len(c_results)} ok  |  "
+        f"{len(c_ok) / c_elapsed:.1f} req/s  |  "
+        f"p99 {float(np.percentile(c_lats, 99)):.0f} ms"
+    )
+    print()
+
+    # ── Scenario D: Concurrent Retraining ──────────────────────────────
+    d_series_id = "bench-d-retrain"
+    print(
+        f"[D] Concurrent Retraining ({args.retrain_n_versions}x '{d_series_id}') …",
+        flush=True,
+    )
+    d_results, d_elapsed, d_final_version = run_scenario_d(
+        session,
+        args.base_url,
+        series_id=d_series_id,
+        n_versions=args.retrain_n_versions,
+        concurrency=args.retrain_concurrency,
+    )
+    d_ok = [r for r in d_results if r["status"] == "ok"]
+    d_lats = np.array([r["latency_ms"] for r in d_ok]) if d_ok else np.array([0.0])
+    print(
+        f"    {len(d_ok)}/{len(d_results)} ok  |  "
+        f"{len(d_ok) / d_elapsed:.1f} train/s  |  "
+        f"p99 {float(np.percentile(d_lats, 99)):.0f} ms  |  "
+        f"final version: {d_final_version}"
+    )
+    print()
 
     # ── Report ───────────────────────────────────────────────────────────────
     if args.output:
@@ -547,6 +731,9 @@ async def main(args: argparse.Namespace) -> None:
             d_concurrency=args.retrain_concurrency,
             d_series_id=d_series_id,
             d_final_version=d_final_version,
+            sla_min_throughput=args.sla_min_throughput,
+            sla_max_p99_ms=args.sla_max_p99_ms,
+            sla_max_error_rate=args.sla_max_error_rate,
         )
         out = Path(args.output)
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -597,13 +784,13 @@ def parse_args() -> argparse.Namespace:
         "--cache-size",
         type=int,
         default=50,
-        help="LRU model cache size — must match LRU_CACHE_SIZE in .env (default: 50)",
+        help="Redis model cache size — must match the app cache config (default: 50)",
     )
     p.add_argument(
         "--evict-extra",
         type=int,
         default=10,
-        help="Extra models trained beyond cache size to force LRU evictions (default: 10)",
+        help="Extra models trained beyond cache size to force Redis cache evictions (default: 10)",
     )
     p.add_argument(
         "--train-n-models",
@@ -652,4 +839,4 @@ def parse_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    asyncio.run(main(parse_args()))
+    main(parse_args())
