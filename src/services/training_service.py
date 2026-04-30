@@ -15,14 +15,11 @@ from src.services.metadata_cache import MetadataCache
 
 logger = get_logger(__name__)
 
-
 def _compute_data_hash(body: "TrainRequest") -> str:
-    """Return a SHA-256 hex digest that uniquely identifies the training data."""
     payload = json.dumps(
         {"timestamps": body.timestamps, "values": body.values}, separators=(",", ":")
     ).encode()
     return hashlib.sha256(payload).hexdigest()
-
 
 class TrainingService:
     def __init__(
@@ -128,3 +125,4 @@ class TrainingService:
             version=model_version,
             points_used=len(body.timestamps),
         )
+

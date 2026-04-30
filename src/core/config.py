@@ -3,11 +3,9 @@ from functools import lru_cache
 from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 class Settings(BaseSettings):
     api_port: int = 8000
     log_level: str = "INFO"
-    lru_cache_size: int = 10000
     healthcheck_latency_window: int = 1000
 
     postgres_user: str = "postgres"
@@ -24,6 +22,15 @@ class Settings(BaseSettings):
     mlflow_tracking_uri: str = "http://localhost:5001"
     mlflow_s3_endpoint_url: str = "http://localhost:9000"
 
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_db: int = 0
+    redis_model_ttl_seconds: int = 86400
+    redis_metadata_ttl_seconds: int = 3600
+
+    local_cache_maxsize: int = 100
+    local_cache_ttl_seconds: int = 60
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -38,7 +45,7 @@ class Settings(BaseSettings):
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
 
-
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+

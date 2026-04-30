@@ -12,10 +12,8 @@ from src.core.database import AsyncSessionFactory
 
 logger = get_logger(__name__)
 
-
 class ModelNotFoundError(Exception):
     pass
-
 
 class PredictionService:
     def __init__(
@@ -82,3 +80,4 @@ class PredictionService:
         return PredictResponse(
             anomaly=is_anomaly, model_version=metadata.version
         ), timings
+

@@ -20,6 +20,14 @@ services:
     networks:
       - anomaly-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: anomaly-redis
+    ports:
+      - "${REDIS_PORT}:6379"
+    networks:
+      - anomaly-network
+
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: anomaly-minio
@@ -103,6 +111,7 @@ services:
       - .env
     environment:
       POSTGRES_HOST: postgres
+      REDIS_HOST: redis
       MINIO_ENDPOINT_URL: http://minio:9000
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
       MLFLOW_TRACKING_URI: http://mlflow:5000
@@ -117,6 +126,8 @@ services:
         condition: service_healthy
       mlflow:
         condition: service_healthy
+      redis:
+        condition: service_started
     healthcheck:
       test:
         [
@@ -171,6 +182,7 @@ services:
     environment:
       API_BASE_URL: http://api:8000
       POSTGRES_HOST: postgres
+      REDIS_HOST: redis
       MINIO_ENDPOINT_URL: http://minio:9000
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
       MLFLOW_TRACKING_URI: http://mlflow:5000
@@ -192,6 +204,7 @@ services:
       - .env
     environment:
       POSTGRES_HOST: postgres
+      REDIS_HOST: redis
       MINIO_ENDPOINT_URL: http://minio:9000
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
       MLFLOW_TRACKING_URI: http://mlflow:5000
@@ -210,13 +223,13 @@ services:
       - --evict-extra
       - "10"
       - --train-n-models
-      - "20"
-      - --train-concurrency
-      - "10"
-      - --infer-n-requests
-      - "500"
-      - --infer-concurrency
       - "50"
+      - --train-concurrency
+      - "20"
+      - --infer-n-requests
+      - "1000"
+      - --infer-concurrency
+      - "100"
       - --retrain-n-versions
       - "10"
       - --retrain-concurrency

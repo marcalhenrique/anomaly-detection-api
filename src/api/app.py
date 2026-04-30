@@ -14,10 +14,9 @@ from src.api.routes.health import router as health_router
 from src.api.middleware import HTTPLatencyMiddleware
 from src.core.database import AsyncSessionFactory, engine
 from src.repositories.model_metadata import ModelMetadataRepository
-from src.api.dependencies import _mlflow_service, _metadata_cache
+from src.api.dependencies import _mlflow_service, _metadata_cache, get_metrics_collector
 
 logger = get_logger(__name__)
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -53,11 +52,27 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 error=str(e),
             )
     logger.info("cache_warming_complete", total_models=len(records))
+
+    metrics_collector = get_metrics_collector()
+
+    async def _cache_metrics_loop() -> None:
+        while True:
+            try:
+                await asyncio.to_thread(
+                    metrics_collector.update_cache_metrics,
+                    _metadata_cache,
+                    _mlflow_service,
+                )
+            except Exception as e:
+                logger.warning("cache_metrics_refresh_failed", error=str(e))
+            await asyncio.sleep(10)
+
+    cache_metrics_task = asyncio.create_task(_cache_metrics_loop())
     yield
+    cache_metrics_task.cancel()
 
     logger.info("shutting_down")
     await engine.dispose()
-
 
 def create_app() -> FastAPI:
     settings = get_settings()
@@ -79,3 +94,4 @@ def create_app() -> FastAPI:
 
     logger.info("app_created", port=settings.api_port)
     return app
+
