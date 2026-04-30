@@ -9,7 +9,6 @@ from src.services.metrics_collector import MetricsCollector
 
 router = APIRouter()
 
-
 @router.post(
     "/predict/{series_id}", response_model=PredictResponse, tags=["Prediction"]
 )
@@ -35,3 +34,4 @@ async def predict(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+

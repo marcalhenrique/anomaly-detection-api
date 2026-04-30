@@ -3,7 +3,6 @@ from sqlalchemy import select, func
 
 from src.models.model_metadata import ModelMetadata
 
-
 class ModelMetadataRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -69,3 +68,4 @@ class ModelMetadataRepository:
             select(func.count(func.distinct(ModelMetadata.series_id)))
         )
         return result.scalar_one()
+

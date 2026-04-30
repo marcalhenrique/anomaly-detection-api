@@ -5,7 +5,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import Base
 
-
 class ModelMetadata(Base):
     __tablename__ = "model_metadata"
 
@@ -18,3 +17,4 @@ class ModelMetadata(Base):
     trained_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
